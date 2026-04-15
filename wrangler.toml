@@ -3,7 +3,16 @@ name = "my-wine-menu"
 compatibility_date = "2024-05-02"
 compatibility_flags = [ "nodejs_compat" ]
 
-# R2の紐付けをコードで直接定義（画面の設定を無視させます）
+# 1. AI機能の再接続
+[ai]
+binding = "AI"
+
+# 2. データベース(KV)の再接続
+[[kv_namespaces]]
+binding = "WINE_KV"
+id = "WINE_KV_STORAGE" # 以前の画面で確認した名前です
+
+# 3. 画像保存(R2)の再接続
 [[r2_buckets]]
 binding = "WINE_IMAGES"
-bucket_name = "wine-images" # あなたが最後に作り直したバケット名が違う場合は、その名前に変えてください。
+bucket_name = "wine-pro-storage" # 最後に作った新しいバケット名

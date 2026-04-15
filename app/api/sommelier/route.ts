@@ -5,32 +5,33 @@ export async function POST(req: NextRequest) {
   try {
     const { message } = await req.json();
 
-    // 1. 現在の在庫リストを取得する
+    // 1. D1データベースから「在庫があるワイン」だけを取得
     // @ts-ignore
     const { results: wines } = await process.env.DB.prepare(
       "SELECT name_jp, category, variety, sub_region, description FROM wines WHERE stock > 0"
     ).all();
 
-    // 2. AIへの指示書（プロンプト）を作成
+    // 2. AIに渡すための在庫リストをテキスト化
     const wineListContext = wines.map((w: any) => 
-      `- ${w.name_jp} (${w.category}): ${w.variety}産、${w.sub_region}。特徴: ${w.description}`
+      `- ${w.name_jp} (${w.category}): ${w.variety}種、${w.sub_region}産。特徴: ${w.description}`
     ).join('\n');
 
+    // 3. AIへの「役割」と「知識（在庫）」の指示
     const systemPrompt = `
-      あなたは一流ホテルの「AIソムリエ」です。
-      以下の在庫リストにあるワインのみをお客様に提案してください。
-      在庫にないワインは絶対に勧めないでください。
+      あなたは高級レストランの「AIソムリエ」です。
+      以下の【在庫リスト】にあるワインの中から、お客様の要望に最適なものを提案してください。
+      リストにないワインは絶対に勧めないでください。
       
       【在庫リスト】
       ${wineListContext}
 
-      【ルール】
-      ・優雅で丁寧な日本語で接客してください。
-      ・お客様の料理や好みに合わせて、具体的になぜそのワインが合うのか解説してください。
-      ・300文字以内で回答してください。
+      【接客のルール】
+      ・優雅で非常に丁寧な日本語（敬語）で回答してください。
+      ・具体的になぜそのワインが合うのか、香りや味わいの特徴を交えて解説してください。
+      ・回答は200〜300文字程度にまとめてください。
     `;
 
-    // 3. Cloudflare Workers AI を呼び出し
+    // 4. Cloudflare Workers AI を実行
     // @ts-ignore
     const response = await process.env.AI.run('@cf/meta/llama-3-8b-instruct', {
       messages: [

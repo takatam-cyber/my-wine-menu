@@ -13,18 +13,21 @@ export async function POST(req: Request) {
     // @ts-ignore
     const response = await process.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       image: Array.from(uint8Array),
-      prompt: "Analyze this wine label. Return ONLY a valid JSON: { \"name_jp\": \"ワイン名(日本語)\", \"name_en\": \"Wine Name(English)\", \"vintage\": 2020, \"variety\": \"品種\", \"sub_region\": \"産地\", \"category\": \"Red/White/Sparkling\", \"description\": \"日本語での短い説明\" }",
+      prompt: "You are a sommelier. Identify this wine label. Return ONLY a JSON object: { \"name_jp\": \"...\", \"name_en\": \"...\", \"vintage\": 2020, \"variety\": \"...\", \"sub_region\": \"...\", \"category\": \"Red/White/Sparkling\", \"description\": \"日本語の短い説明\" }",
     });
 
-    // AIの返答をきれいに掃除してJSONにする
-    let result = response.response;
-    if (typeof result === 'string') {
-      const jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (jsonMatch) result = JSON.parse(jsonMatch[0]);
-    }
+    let resultText = response.response;
+    
+    // 【重要】AIが余計な説明を書いてもJSONだけを抽出するロジック
+    const jsonStart = resultText.indexOf('{');
+    const jsonEnd = resultText.lastIndexOf('}') + 1;
+    const jsonString = resultText.substring(jsonStart, jsonEnd);
+    
+    const result = JSON.parse(jsonString);
 
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: "AI Scan failed" }, { status: 500 });
+    console.error("Scan error:", e);
+    return NextResponse.json({ error: "解析に失敗しました。もう一度お試しください。" }, { status: 500 });
   }
 }

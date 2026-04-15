@@ -3,7 +3,7 @@
 export const runtime = 'edge';
 
 import React, { useState, useEffect } from 'react';
-import { Camera, Save, Loader2, Wine } from 'lucide-react';
+import { Camera, Save, Loader2, Wine, Plus } from 'lucide-react';
 
 export default function AdminPage() {
   const [wines, setWines] = useState([]);
@@ -11,8 +11,13 @@ export default function AdminPage() {
   const [scanLoading, setScanLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [pass, setPass] = useState("");
+  
+  // 新規追加用の入力データ
+  const [newWine, setNewWine] = useState({
+    name_jp: "", name_en: "", price: 0, stock: 1, category: "Red", vintage: 2024,
+    image_url: "", variety: "", sub_region: "", description: ""
+  });
 
-  // 1. ワイン一覧の読み込み
   const loadWines = async () => {
     setLoading(true);
     const res = await fetch('/api/wines');
@@ -21,51 +26,46 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (isAuthorized) loadWines();
-  }, [isAuthorized]);
+  useEffect(() => { if (isAuthorized) loadWines(); }, [isAuthorized]);
 
-  // 2. AIスキャンの処理
+  // AIスキャン：結果を newWine ステートに流し込む
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setScanLoading(true);
     const formData = new FormData();
     formData.append('file', file);
-
     try {
       const res = await fetch('/api/scan', { method: 'POST', body: formData });
       const ai = await res.json();
-      
-      // AIの結果をポップアップで表示（次のステップでフォームへの自動反映を実装します）
-      alert(`AI解析完了！\nワイン名: ${ai.name_jp || '不明'}\n説明: ${ai.description || 'なし'}`);
-    } catch (err) {
-      alert("AIスキャンに失敗しました");
-    } finally {
-      setScanLoading(false);
-    }
+      // AIの結果を入力欄に自動セット！
+      setNewWine({
+        ...newWine,
+        name_jp: ai.name_jp || "",
+        name_en: ai.name_en || "",
+        vintage: ai.vintage || 2024,
+        variety: ai.variety || "",
+        sub_region: ai.sub_region || "",
+        description: ai.description || ""
+      });
+      alert("AI解析が完了し、入力欄にセットしました！");
+    } catch (err) { alert("AIスキャンに失敗しました"); } 
+    finally { setScanLoading(false); }
   };
 
-  // 3. 保存ボタンの処理
-  const handleSave = async (wine: any) => {
-    await fetch('/api/wines', {
-      method: 'POST',
-      body: JSON.stringify(wine),
-    });
-    alert("保存しました！");
-    loadWines();
+  const handleSave = async (wineData: any) => {
+    await fetch('/api/wines', { method: 'POST', body: JSON.stringify(wineData) });
+    alert("保存が完了しました！");
+    loadWines(); // 一覧を更新
   };
 
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white font-sans">
         <Wine className="w-12 h-12 text-[#d4af37] mb-6 opacity-50" />
-        <h1 className="text-xl font-serif mb-6 tracking-widest text-zinc-400 uppercase">Cellar Access</h1>
-        <div className="w-full max-w-xs space-y-4">
-          <input type="password" onChange={(e) => setPass(e.target.value)} className="w-full bg-zinc-900 p-4 rounded-xl text-center border border-zinc-800 outline-none focus:border-[#d4af37]" placeholder="••••••" />
-          <button onClick={() => pass === "wine123" && setIsAuthorized(true)} className="w-full bg-[#d4af37] text-black py-4 rounded-xl font-bold">UNLOCKED</button>
-        </div>
+        <h1 className="text-xl font-serif mb-6 tracking-widest text-zinc-400">ADMIN ACCESS</h1>
+        <input type="password" onChange={(e) => setPass(e.target.value)} className="bg-zinc-900 p-4 rounded-xl mb-4 text-center border border-zinc-800" placeholder="Password" />
+        <button onClick={() => pass === "wine123" && setIsAuthorized(true)} className="bg-[#d4af37] text-black px-10 py-3 rounded-xl font-bold uppercase tracking-widest text-xs">Login</button>
       </div>
     );
   }
@@ -75,44 +75,53 @@ export default function AdminPage() {
       <div className="max-w-4xl mx-auto">
         <header className="mb-12 flex justify-between items-center">
           <h1 className="text-3xl font-bold tracking-tight">Cellar Manager</h1>
-          <label className="cursor-pointer bg-black text-white px-6 py-3 rounded-full flex items-center gap-2 hover:bg-zinc-800 transition-all shadow-xl">
-            {scanLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-            <span className="text-sm font-bold">{scanLoading ? "Analyzing..." : "AI Label Scan"}</span>
-            <input type="file" accept="image/*" className="hidden" onChange={handleScan} disabled={scanLoading} />
+          <label className="cursor-pointer bg-black text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl hover:scale-105 transition-all">
+            {scanLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Camera className="w-4 h-4" />}
+            <span className="text-sm font-bold">AI Label Scan</span>
+            <input type="file" accept="image/*" className="hidden" onChange={handleScan} />
           </label>
         </header>
 
-        {loading ? (
-          <div className="flex justify-center p-20"><Loader2 className="animate-spin text-zinc-300" /></div>
-        ) : (
-          <div className="grid gap-8">
-            {wines.map((wine: any) => (
-              <div key={wine.id} className="bg-white rounded-3xl p-6 shadow-sm border border-zinc-100 space-y-6">
-                <div className="flex gap-4 items-center border-b pb-4 border-zinc-50">
-                   <img src={wine.image_url} className="w-16 h-16 rounded-xl object-cover bg-zinc-100" />
-                   <div>
-                     <h2 className="font-bold">{wine.name_jp}</h2>
-                     <p className="text-xs text-zinc-400 uppercase">{wine.category} / {wine.vintage}</p>
-                   </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <input type="number" defaultValue={wine.price} className="bg-zinc-50 p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-black" placeholder="Price" 
-                    onChange={(e) => wine.price = Number(e.target.value)} />
-                  <input type="number" defaultValue={wine.stock} className="bg-zinc-50 p-3 rounded-xl text-sm outline-none focus:ring-1 focus:ring-black" placeholder="Stock"
-                    onChange={(e) => wine.stock = Number(e.target.value)} />
-                </div>
-
-                <textarea defaultValue={wine.description} className="w-full bg-zinc-50 p-3 rounded-xl text-sm h-24 outline-none border border-transparent focus:border-zinc-200"
-                   onChange={(e) => wine.description = e.target.value} />
-
-                <button onClick={() => handleSave(wine)} className="w-full bg-zinc-100 text-zinc-900 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black hover:text-white transition-all">
-                  <Save className="w-4 h-4" /> Save Changes
-                </button>
-              </div>
-            ))}
+        {/* --- 新規追加フォーム --- */}
+        <section className="mb-16 bg-[#fff9e6] p-8 rounded-[2rem] border-2 border-[#d4af37]/20 shadow-inner">
+          <h2 className="flex items-center gap-2 font-bold mb-6 text-[#856a16]">
+            <Plus className="w-5 h-5" /> 新しいワインを登録する
+          </h2>
+          <div className="grid md:grid-cols-2 gap-4 mb-4">
+            <input placeholder="ワイン名（日本語）" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="p-3 rounded-xl border-none shadow-sm text-sm" />
+            <input placeholder="Wine Name (English)" value={newWine.name_en} onChange={e => setNewWine({...newWine, name_en: e.target.value})} className="p-3 rounded-xl border-none shadow-sm text-sm" />
           </div>
-        )}
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <input type="number" placeholder="価格" value={newWine.price} onChange={e => setNewWine({...newWine, price: Number(e.target.value)})} className="p-3 rounded-xl border-none shadow-sm text-sm" />
+            <input type="number" placeholder="在庫数" value={newWine.stock} onChange={e => setNewWine({...newWine, stock: Number(e.target.value)})} className="p-3 rounded-xl border-none shadow-sm text-sm" />
+            <input type="number" placeholder="ヴィンテージ" value={newWine.vintage} onChange={e => setNewWine({...newWine, vintage: Number(e.target.value)})} className="p-3 rounded-xl border-none shadow-sm text-sm" />
+          </div>
+          <textarea placeholder="AIが作成した説明文がここに入ります" value={newWine.description} onChange={e => setNewWine({...newWine, description: e.target.value})} className="w-full p-3 rounded-xl border-none shadow-sm text-sm h-24 mb-6" />
+          <button onClick={() => handleSave(newWine)} className="w-full bg-[#d4af37] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#b8962d] transition-all">
+            この内容でセラーに追加する
+          </button>
+        </section>
+
+        {/* --- 在庫一覧 --- */}
+        <div className="grid gap-6 opacity-80">
+          <h2 className="font-bold text-zinc-400 uppercase text-xs tracking-widest border-b pb-2">Current Inventory</h2>
+          {wines.map((wine: any) => (
+            <div key={wine.id} className="bg-white p-6 rounded-2xl flex items-center justify-between shadow-sm border border-zinc-100">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-zinc-100 rounded-lg overflow-hidden flex-shrink-0">
+                  <img src={wine.image_url || "https://images.unsplash.com/photo-1510850402288-c3f5305c21bd?q=80&w=100"} className="w-full h-full object-cover" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">{wine.name_jp}</h3>
+                  <p className="text-[10px] text-zinc-400 uppercase tracking-tighter">在庫: {wine.stock} / ¥{wine.price.toLocaleString()}</p>
+                </div>
+              </div>
+              <button onClick={() => {/* 編集モード */}} className="text-zinc-300 hover:text-black">
+                <Save className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

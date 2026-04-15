@@ -1,0 +1,9 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "my-wine-menu"
+compatibility_date = "2024-05-02"
+compatibility_flags = [ "nodejs_compat" ]
+
+# ここでR2の紐付けを「コード」として定義します
+[[r2_buckets]]
+binding = "WINE_IMAGES"
+bucket_name = "wine-pro-storage" # あなたが最後に作ったバケット名に書き換えてください

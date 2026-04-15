@@ -31,7 +31,7 @@ export default function AdminPage() {
       const res = await fetch('/api/scan', { method: 'POST', body: formData });
       const ai = await res.json();
       setNewWine({ ...newWine, name_jp: ai.name_jp, name_en: ai.name_en, vintage: ai.vintage, variety: ai.variety, sub_region: ai.sub_region, description: ai.description });
-      alert("AI解析完了！フォームを確認してください。");
+      alert("AI解析完了！黄色いフォームを確認してください。");
     } catch (err) { alert("AIスキャンに失敗しました"); } finally { setScanLoading(false); }
   };
 
@@ -57,7 +57,7 @@ export default function AdminPage() {
       <div className="max-w-4xl mx-auto">
         <header className="mb-12 flex justify-between items-center">
           <h1 className="text-3xl font-bold tracking-tight">Cellar Manager</h1>
-          <label className="cursor-pointer bg-black text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl hover:scale-105 transition-all active:scale-95">
+          <label className="cursor-pointer bg-black text-white px-6 py-3 rounded-full flex items-center gap-2 shadow-xl hover:scale-105 transition-all">
             {scanLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Camera className="w-4 h-4" />}
             <span className="text-sm font-bold">AI Label Scan</span>
             <input type="file" accept="image/*" className="hidden" onChange={handleScan} />
@@ -65,8 +65,7 @@ export default function AdminPage() {
         </header>
 
         {/* --- 新規登録（黄色いエリア） --- */}
-        <section className="mb-20 bg-[#fff9e6] p-8 rounded-[2.5rem] border-2 border-[#d4af37]/20 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-5"><Plus className="w-24 h-24" /></div>
+        <section className="mb-20 bg-[#fff9e6] p-8 rounded-[2.5rem] border-2 border-[#d4af37]/20 shadow-xl">
           <h2 className="flex items-center gap-2 font-bold mb-8 text-[#856a16] text-xl">新しいワインを登録</h2>
           <div className="grid md:grid-cols-2 gap-4 mb-4">
             <input placeholder="名前 (日本語)" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="p-4 rounded-2xl border-none shadow-sm text-sm" />
@@ -94,16 +93,13 @@ export default function AdminPage() {
               <div className="md:col-span-2 space-y-4">
                 <div className="flex justify-between items-start">
                   <h3 className="font-bold text-lg">{wine.name_jp}</h3>
-                  <select defaultValue={wine.category} onChange={e => wine.category = e.target.value} className="bg-zinc-100 px-3 py-1 rounded-full text-[10px] font-bold">
-                    <option value="Red">Red</option><option value="White">White</option><option value="Sparkling">Sparkling</option>
-                  </select>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <input type="number" defaultValue={wine.price} onChange={e => wine.price = Number(e.target.value)} className="bg-zinc-50 p-2 rounded-lg text-xs" />
                   <input type="number" defaultValue={wine.stock} onChange={e => wine.stock = Number(e.target.value)} className="bg-zinc-50 p-2 rounded-lg text-xs" />
                   <input type="number" defaultValue={wine.vintage} onChange={e => wine.vintage = Number(e.target.value)} className="bg-zinc-50 p-2 rounded-lg text-xs" />
                 </div>
-                <button onClick={() => handleSave(wine)} className="w-full bg-zinc-900 text-white py-3 rounded-xl text-xs font-bold hover:bg-black transition-all">Update Info</button>
+                <button onClick={() => handleSave(wine)} className="w-full bg-zinc-900 text-white py-3 rounded-xl text-xs font-bold">Update Info</button>
               </div>
             </div>
           ))}

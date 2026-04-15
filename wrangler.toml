@@ -3,16 +3,16 @@ name = "my-wine-menu"
 compatibility_date = "2024-05-02"
 compatibility_flags = [ "nodejs_compat" ]
 
-# 1. AI機能の再接続
+# 1. AI機能の接続
 [ai]
 binding = "AI"
 
-# 2. データベース(KV)の再接続
+# 2. データベース(KV)の接続
 [[kv_namespaces]]
 binding = "WINE_KV"
-id = "WINE_KV_STORAGE" # 以前の画面で確認した名前です
+id = "6ee572fea3e74a3d92d3a43b1b062e44"
 
-# 3. 画像保存(R2)の再接続
+# 3. 画像保存(R2)の接続
 [[r2_buckets]]
 binding = "WINE_IMAGES"
-bucket_name = "wine-pro-storage" # 最後に作った新しいバケット名
+bucket_name = "wine-pro-storage"

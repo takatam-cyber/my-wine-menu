@@ -9,7 +9,7 @@ binding = "AI"
 
 # 2. データベース(KV)の接続
 [[kv_namespaces]]
-binding = "WINE_KV"　
+binding = "WINE_KV"
 id = "6ee572fea3e74a3d92d3a43b1b062e44"
 
 # 3. 画像保存(R2)の接続

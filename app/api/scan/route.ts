@@ -10,24 +10,20 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
 
+    // AIへの指示を「飲食店メニュー用」に強化
     // @ts-ignore
     const response = await process.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       image: Array.from(uint8Array),
-      prompt: "You are a sommelier. Identify this wine label. Return ONLY a JSON object: { \"name_jp\": \"...\", \"name_en\": \"...\", \"vintage\": 2020, \"variety\": \"...\", \"sub_region\": \"...\", \"category\": \"Red/White/Sparkling\", \"description\": \"日本語の短い説明\" }",
+      prompt: "You are an expert sommelier. Identify this wine. Return ONLY a JSON object: { \"name_jp\": \"ワイン名\", \"name_en\": \"Name\", \"vintage\": 2020, \"country\": \"国名\", \"region\": \"産地詳細\", \"variety\": \"品種\", \"category\": \"Red/White/Rose/Sparkling\", \"description\": \"味わいの特徴を100文字以内の日本語で\" }",
     });
 
     let resultText = response.response;
-    
-    // 【重要】AIが余計な説明を書いてもJSONだけを抽出するロジック
     const jsonStart = resultText.indexOf('{');
     const jsonEnd = resultText.lastIndexOf('}') + 1;
-    const jsonString = resultText.substring(jsonStart, jsonEnd);
-    
-    const result = JSON.parse(jsonString);
+    const result = JSON.parse(resultText.substring(jsonStart, jsonEnd));
 
     return NextResponse.json(result);
   } catch (e) {
-    console.error("Scan error:", e);
-    return NextResponse.json({ error: "解析に失敗しました。もう一度お試しください。" }, { status: 500 });
+    return NextResponse.json({ error: "解析失敗" }, { status: 500 });
   }
 }

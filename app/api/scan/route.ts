@@ -5,33 +5,26 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
-    }
+    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
     const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
 
-    // TypeScriptのエラーを回避するために Array.from を使用します
     // @ts-ignore
     const response = await process.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-      image: Array.from(new Uint8Array(arrayBuffer)),
-      prompt: "Identify this wine label. Return ONLY a JSON object with: {name_jp, name_en, vintage, variety, sub_region, category, description(short in Japanese)}. If category is Red, White or Sparkling, specify it.",
+      image: Array.from(uint8Array),
+      prompt: "Analyze this wine label. Return ONLY a valid JSON: { \"name_jp\": \"ワイン名(日本語)\", \"name_en\": \"Wine Name(English)\", \"vintage\": 2020, \"variety\": \"品種\", \"sub_region\": \"産地\", \"category\": \"Red/White/Sparkling\", \"description\": \"日本語での短い説明\" }",
     });
 
-    // AIの回答を解析（文字列で返ってきた場合を考慮）
+    // AIの返答をきれいに掃除してJSONにする
     let result = response.response;
     if (typeof result === 'string') {
-      try {
-        result = JSON.parse(result.replace(/```json|```/g, '').trim());
-      } catch (e) {
-        // パース失敗時はそのまま返す
-      }
+      const jsonMatch = result.match(/\{[\s\S]*\}/);
+      if (jsonMatch) result = JSON.parse(jsonMatch[0]);
     }
 
     return NextResponse.json(result);
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return NextResponse.json({ error: "AI Scan failed" }, { status: 500 });
   }
 }

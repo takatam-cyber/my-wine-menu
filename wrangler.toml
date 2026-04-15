@@ -1,18 +1,15 @@
-#:schema node_modules/wrangler/config-schema.json
 name = "my-wine-menu"
+pages_build_output_dir = ".vercel/output/static"
 compatibility_date = "2024-05-02"
-compatibility_flags = [ "nodejs_compat" ]
+compatibility_flags = ["nodejs_compat"]
 
-# 1. AI機能の接続
-[ai]
-binding = "AI"
-
-# 2. データベース(KV)の接続
 [[kv_namespaces]]
 binding = "WINE_KV"
 id = "6ee572fea3e74a3d92d3a43b1b062e44"
 
-# 3. 画像保存(R2)の接続
 [[r2_buckets]]
 binding = "WINE_IMAGES"
 bucket_name = "wine-pro-storage"
+
+[ai]
+binding = "AI"

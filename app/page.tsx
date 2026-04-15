@@ -1,9 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Wine, Search, Filter, ChevronRight } from 'lucide-react';
+import { Wine, Search, Filter, ChevronRight, MapPin } from 'lucide-react';
 
-// あなたのお店のワインリスト（仮データ）
 const WINE_DATA = [
   { 
     id: 1, 
@@ -11,10 +10,12 @@ const WINE_DATA = [
     name_en: "Chateau Margaux", 
     category: "Red", 
     country: "France", 
+    region: "Bordeaux",
     price_bottle: 120000, 
     vintage: 2015, 
-    description: "ボルドー五大シャトーの一つ。優雅で気品溢れる香りと、シルクのような滑らかな口当たりが特徴です。", 
-    tags: ["フルボディ", "エレガント", "ボルドー"] 
+    image: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&q=80&w=600",
+    description: "「ワインの女王」と称されるボルドーの最高峰。華やかで官能的な香りと、ベルベットのような舌触りが、飲む者を至福の時へと誘います。", 
+    tags: ["Full Body", "Elegant"] 
   },
   { 
     id: 2, 
@@ -22,123 +23,119 @@ const WINE_DATA = [
     name_en: "Montrachet", 
     category: "White", 
     country: "France", 
+    region: "Bourgogne",
     price_bottle: 85000, 
     vintage: 2018, 
-    description: "世界最高峰の辛口白ワイン。濃厚でリッチな果実味と、バターのような滑らかさが楽しめます。", 
-    tags: ["辛口", "リッチ", "ブルゴーニュ"] 
+    image: "https://images.unsplash.com/photo-1566393028639-d108a42c46a7?auto=format&fit=crop&q=80&w=600",
+    description: "世界中の愛好家が垂涎する白ワインの最高聖地。圧倒的な凝縮感とミネラル、そしてナッツのような芳醇な余韻が長く続きます。", 
+    tags: ["Dry", "Rich"] 
   },
   { 
     id: 3, 
-    name_jp: "ルイ・ロデレール クリスタル", 
+    name_jp: "クリスタル", 
     name_en: "Louis Roederer Cristal", 
     category: "Sparkling", 
     country: "France", 
+    region: "Champagne",
     price_bottle: 55000, 
     vintage: 2014, 
-    description: "ロシア皇帝に献上された最高級シャンパーニュ。精密で繊細、そして力強いエネルギーを感じます。", 
-    tags: ["シャンパーニュ", "辛口", "華やか"] 
+    image: "https://images.unsplash.com/photo-1594498653385-d5172c532c00?auto=format&fit=crop&q=80&w=600",
+    description: "1876年、ロシア皇帝アレクサンドル2世のために造られた傑作。精密に磨き上げられたダイヤモンドのような輝きと純粋さ。", 
+    tags: ["Sparkling", "Prestige"] 
   },
 ];
 
-export default function WineMenu() {
+export default function LuxuryWineMenu() {
   const [activeTab, setActiveTab] = useState('All');
 
-  // カテゴリ（赤・白など）で絞り込む機能
   const filteredWines = activeTab === 'All' 
     ? WINE_DATA 
     : WINE_DATA.filter(wine => wine.category === activeTab);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e5e5] font-sans pb-10">
-      {/* ヘッダー */}
-      <header className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/10 px-6 py-4">
-        <h1 className="text-2xl font-serif font-bold text-[#d4af37] text-center tracking-widest uppercase">
-          Wine List
+    <div className="min-h-screen bg-luxury-gradient text-[#e5e5e5] pb-20">
+      {/* エレガントなヘッダー */}
+      <header className="pt-16 pb-12 px-6 text-center">
+        <p className="text-[#d4af37] tracking-[0.4em] text-[10px] uppercase mb-3 opacity-80">
+          The Private Cellar
+        </p>
+        <h1 className="text-4xl font-luxury font-bold text-white tracking-tight">
+          Wine Collection
         </h1>
+        <div className="w-12 h-[1px] bg-[#d4af37] mx-auto mt-6 opacity-50"></div>
       </header>
 
-      {/* カテゴリ選択タブ */}
-      <nav className="flex justify-center gap-2 py-6 px-4 overflow-x-auto no-scrollbar">
+      {/* 洗練されたカテゴリナビ */}
+      <nav className="flex justify-center gap-8 mb-12 overflow-x-auto no-scrollbar px-6">
         {['All', 'Red', 'White', 'Sparkling'].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2 rounded-full text-xs font-medium transition-all duration-300 ${
+            className={`text-xs tracking-[0.2em] uppercase transition-all duration-500 pb-2 border-b ${
               activeTab === tab 
-                ? 'bg-[#d4af37] text-black shadow-[0_0_15px_rgba(212,175,55,0.4)]' 
-                : 'bg-white/5 text-gray-400 border border-white/10'
+                ? 'text-[#d4af37] border-[#d4af37]' 
+                : 'text-gray-500 border-transparent'
             }`}
           >
-            {tab === 'All' ? 'すべて' : tab}
+            {tab}
           </button>
         ))}
       </nav>
 
-      {/* 検索バー */}
-      <div className="px-6 mb-8 text-black">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-          <input 
-            type="text" 
-            placeholder="ワイン名や産地で検索..." 
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:border-[#d4af37] transition-colors"
-          />
-        </div>
-      </div>
-
-      {/* リスト表示 */}
-      <main className="px-6 space-y-6">
+      {/* ワインカードリスト */}
+      <main className="max-w-2xl mx-auto px-6 space-y-16">
         {filteredWines.map((wine) => (
-          <div 
-            key={wine.id}
-            className="group relative bg-gradient-to-br from-white/[0.08] to-transparent border border-white/10 rounded-2xl p-5 active:scale-[0.98] transition-all"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-widest text-[#d4af37] font-bold">
-                    {wine.country}
-                  </span>
-                  <span className="text-[10px] text-gray-500">|</span>
-                  <span className="text-[10px] text-gray-400">{wine.vintage}</span>
+          <div key={wine.id} className="group relative overflow-hidden transition-all duration-700">
+            {/* 画像エリア */}
+            <div className="relative aspect-[4/5] overflow-hidden mb-6 bg-zinc-900 shadow-2xl">
+              <img 
+                src={wine.image} 
+                alt={wine.name_jp}
+                className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-[2s]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent"></div>
+              
+              {/* 重ねる情報 */}
+              <div className="absolute bottom-6 left-6 right-6">
+                <div className="flex items-center gap-2 text-[#d4af37] mb-2">
+                  <MapPin className="w-3 h-3" />
+                  <span className="text-[10px] tracking-widest uppercase">{wine.region}, {wine.country}</span>
                 </div>
-                <h2 className="text-lg font-serif font-semibold mt-1 leading-tight group-hover:text-[#d4af37] transition-colors">
+                <h2 className="text-3xl font-luxury font-bold text-white mb-1 tracking-wide">
                   {wine.name_jp}
                 </h2>
-                <p className="text-[10px] text-gray-500 italic mt-0.5">{wine.name_en}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-bold text-white">¥{wine.price_bottle.toLocaleString()}</p>
-                <p className="text-[9px] text-gray-600 uppercase">Bottle</p>
+                <p className="font-luxury italic text-gray-400 text-sm tracking-wide">{wine.name_en}</p>
               </div>
             </div>
 
-            <p className="text-xs text-gray-400 line-clamp-2 mb-4 leading-relaxed">
-              {wine.description}
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              {wine.tags.map(tag => (
-                <span key={tag} className="text-[9px] px-2 py-0.5 bg-white/5 rounded border border-white/5 text-gray-500">
-                  #{tag}
+            {/* 詳細情報 */}
+            <div className="space-y-4 px-2">
+              <div className="flex justify-between items-end border-b border-white/10 pb-4">
+                <span className="text-2xl font-luxury text-white">
+                   <span className="text-sm mr-1">¥</span>{wine.price_bottle.toLocaleString()}
                 </span>
-              ))}
-            </div>
-            
-            <div className="absolute bottom-5 right-5 opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all">
-              <ChevronRight className="w-5 h-5 text-[#d4af37]" />
+                <span className="text-xs text-gray-500 tracking-widest uppercase">Vintage {wine.vintage}</span>
+              </div>
+              
+              <p className="text-sm text-gray-400 leading-relaxed font-light italic">
+                {wine.description}
+              </p>
+
+              <div className="flex gap-4 pt-2">
+                {wine.tags.map(tag => (
+                  <span key={tag} className="text-[9px] tracking-widest uppercase text-[#d4af37] border border-[#d4af37]/30 px-2 py-1">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         ))}
       </main>
 
-      {/* フッター */}
-      <footer className="mt-16 pb-10 text-center">
-        <div className="flex justify-center mb-4">
-          <Wine className="w-6 h-6 text-[#d4af37] opacity-50" />
-        </div>
-        <p className="text-[10px] text-gray-600 tracking-[0.3em] uppercase">
-          Elegant Digital Menu Experience
+      <footer className="mt-32 pb-20 text-center opacity-40">
+        <p className="font-luxury text-[10px] tracking-[0.5em] uppercase">
+          Curated Excellence
         </p>
       </footer>
     </div>

@@ -1,142 +1,77 @@
-"use client";
+export const runtime = 'edge'; // Cloudflareで動かすための魔法の1行
 
-import React, { useState } from 'react';
-import { Wine, Search, Filter, ChevronRight, MapPin } from 'lucide-react';
+import React from 'react';
+import { MapPin, Wine } from 'lucide-react';
 
-const WINE_DATA = [
-  { 
-    id: 1, 
-    name_jp: "シャトー・マルゴー", 
-    name_en: "Chateau Margaux", 
-    category: "Red", 
-    country: "France", 
-    region: "Bordeaux",
-    price_bottle: 120000, 
-    vintage: 2015, 
-    image: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?auto=format&fit=crop&q=80&w=600",
-    description: "「ワインの女王」と称されるボルドーの最高峰。華やかで官能的な香りと、ベルベットのような舌触りが、飲む者を至福の時へと誘います。", 
-    tags: ["Full Body", "Elegant"] 
-  },
-  { 
-    id: 2, 
-    name_jp: "モンラッシェ", 
-    name_en: "Montrachet", 
-    category: "White", 
-    country: "France", 
-    region: "Bourgogne",
-    price_bottle: 85000, 
-    vintage: 2018, 
-    image: "https://images.unsplash.com/photo-1566393028639-d108a42c46a7?auto=format&fit=crop&q=80&w=600",
-    description: "世界中の愛好家が垂涎する白ワインの最高聖地。圧倒的な凝縮感とミネラル、そしてナッツのような芳醇な余韻が長く続きます。", 
-    tags: ["Dry", "Rich"] 
-  },
-  { 
-    id: 3, 
-    name_jp: "クリスタル", 
-    name_en: "Louis Roederer Cristal", 
-    category: "Sparkling", 
-    country: "France", 
-    region: "Champagne",
-    price_bottle: 55000, 
-    vintage: 2014, 
-    image: "https://images.unsplash.com/photo-1594498653385-d5172c532c00?auto=format&fit=crop&q=80&w=600",
-    description: "1876年、ロシア皇帝アレクサンドル2世のために造られた傑作。精密に磨き上げられたダイヤモンドのような輝きと純粋さ。", 
-    tags: ["Sparkling", "Prestige"] 
-  },
-];
+export default async function LuxuryWineMenu() {
+  // Cloudflare D1データベースからデータを取得
+  // @ts-ignore
+  const { results } = await process.env.DB.prepare(
+    "SELECT * FROM wines WHERE stock > 0 ORDER BY id DESC"
+  ).all();
 
-export default function LuxuryWineMenu() {
-  const [activeTab, setActiveTab] = useState('All');
-
-  const filteredWines = activeTab === 'All' 
-    ? WINE_DATA 
-    : WINE_DATA.filter(wine => wine.category === activeTab);
+  const wines = results;
 
   return (
-    <div className="min-h-screen bg-luxury-gradient text-[#e5e5e5] pb-20">
-      {/* エレガントなヘッダー */}
-      <header className="pt-16 pb-12 px-6 text-center">
-        <p className="text-[#d4af37] tracking-[0.4em] text-[10px] uppercase mb-3 opacity-80">
-          The Private Cellar
-        </p>
-        <h1 className="text-4xl font-luxury font-bold text-white tracking-tight">
-          Wine Collection
-        </h1>
-        <div className="w-12 h-[1px] bg-[#d4af37] mx-auto mt-6 opacity-50"></div>
+    <div className="min-h-screen bg-[#050505] text-[#e5e5e5] pb-20 font-sans">
+      <header className="pt-20 pb-16 text-center">
+        <p className="text-[#d4af37] tracking-[0.4em] text-[10px] uppercase mb-4 opacity-70">The Private Cellar</p>
+        <h1 className="text-5xl font-serif font-bold tracking-tight text-white">Wine Collection</h1>
+        <div className="w-16 h-[1px] bg-[#d4af37] mx-auto mt-8 opacity-40"></div>
       </header>
 
-      {/* 洗練されたカテゴリナビ */}
-      <nav className="flex justify-center gap-8 mb-12 overflow-x-auto no-scrollbar px-6">
-        {['All', 'Red', 'White', 'Sparkling'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`text-xs tracking-[0.2em] uppercase transition-all duration-500 pb-2 border-b ${
-              activeTab === tab 
-                ? 'text-[#d4af37] border-[#d4af37]' 
-                : 'text-gray-500 border-transparent'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </nav>
-
-      {/* ワインカードリスト */}
-      <main className="max-w-2xl mx-auto px-6 space-y-16">
-        {filteredWines.map((wine) => (
-          <div key={wine.id} className="group relative overflow-hidden transition-all duration-700">
-            {/* 画像エリア */}
-            <div className="relative aspect-[4/5] overflow-hidden mb-6 bg-zinc-900 shadow-2xl">
+      <main className="max-w-2xl mx-auto px-6 space-y-24">
+        {wines.map((wine: any) => (
+          <div key={wine.id} className="group animate-in fade-in duration-1000">
+            {/* ビジュアルエリア */}
+            <div className="relative aspect-[4/5] mb-8 overflow-hidden bg-zinc-900 shadow-2xl rounded-sm">
               <img 
-                src={wine.image} 
-                alt={wine.name_jp}
-                className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-[2s]"
+                src={wine.image_url || "https://images.unsplash.com/photo-1510850402288-c3f5305c21bd?q=80&w=600"} 
+                className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[3s]" 
+                alt={wine.name_jp} 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-transparent to-transparent"></div>
-              
-              {/* 重ねる情報 */}
-              <div className="absolute bottom-6 left-6 right-6">
-                <div className="flex items-center gap-2 text-[#d4af37] mb-2">
+              <div className="absolute bottom-8 left-8">
+                <div className="flex items-center gap-2 text-[#d4af37] text-[10px] tracking-[0.2em] uppercase mb-2 font-bold">
                   <MapPin className="w-3 h-3" />
-                  <span className="text-[10px] tracking-widest uppercase">{wine.region}, {wine.country}</span>
+                  <span>{wine.region} / {wine.country}</span>
                 </div>
-                <h2 className="text-3xl font-luxury font-bold text-white mb-1 tracking-wide">
-                  {wine.name_jp}
-                </h2>
-                <p className="font-luxury italic text-gray-400 text-sm tracking-wide">{wine.name_en}</p>
+                <h2 className="text-4xl font-serif font-bold text-white leading-tight mb-1">{wine.name_jp}</h2>
+                <p className="text-gray-400 font-serif italic text-sm">{wine.name_en}</p>
               </div>
             </div>
 
-            {/* 詳細情報 */}
-            <div className="space-y-4 px-2">
-              <div className="flex justify-between items-end border-b border-white/10 pb-4">
-                <span className="text-2xl font-luxury text-white">
-                   <span className="text-sm mr-1">¥</span>{wine.price_bottle.toLocaleString()}
-                </span>
-                <span className="text-xs text-gray-500 tracking-widest uppercase">Vintage {wine.vintage}</span>
+            {/* 詳細スペック */}
+            <div className="grid grid-cols-2 gap-8 mb-8 py-6 border-y border-white/10 mx-2">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-2 font-semibold text-zinc-500">Variety</p>
+                <p className="text-xs text-gray-200 font-light leading-relaxed">{wine.variety || "---"}</p>
               </div>
-              
-              <p className="text-sm text-gray-400 leading-relaxed font-light italic">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] mb-2 font-semibold text-zinc-500">Appellation</p>
+                <p className="text-xs text-gray-200 font-light leading-relaxed">{wine.sub_region || "---"}</p>
+              </div>
+            </div>
+
+            {/* 価格と説明 */}
+            <div className="px-2 space-y-4">
+              <div className="flex justify-between items-baseline">
+                <span className="text-3xl font-serif text-white tracking-tighter">
+                   <span className="text-sm mr-1 opacity-60">¥</span>{wine.price.toLocaleString()}
+                </span>
+                <span className="text-xs text-zinc-500 tracking-widest uppercase italic">Vintage {wine.vintage}</span>
+              </div>
+              <p className="text-sm text-zinc-400 leading-relaxed font-light italic">
                 {wine.description}
               </p>
-
-              <div className="flex gap-4 pt-2">
-                {wine.tags.map(tag => (
-                  <span key={tag} className="text-[9px] tracking-widest uppercase text-[#d4af37] border border-[#d4af37]/30 px-2 py-1">
-                    {tag}
-                  </span>
-                ))}
-              </div>
             </div>
           </div>
         ))}
       </main>
 
-      <footer className="mt-32 pb-20 text-center opacity-40">
-        <p className="font-luxury text-[10px] tracking-[0.5em] uppercase">
-          Curated Excellence
-        </p>
+      <footer className="mt-40 pb-20 text-center opacity-30">
+        <Wine className="w-6 h-6 mx-auto mb-4 text-[#d4af37]" />
+        <p className="font-serif text-[10px] tracking-[0.6em] uppercase">Elegant Digital Menu</p>
       </footer>
     </div>
   );

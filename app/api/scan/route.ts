@@ -1,25 +1,37 @@
 export const runtime = 'edge';
+import { NextResponse } from 'next/server';
 
-import { NextRequest, NextResponse } from 'next/server';
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    const blob = await file.arrayBuffer();
+    if (!file) {
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
 
-    // Cloudflare Workers AI を呼び出し（Llama 3.2 Vision モデルを使用）
+    const arrayBuffer = await file.arrayBuffer();
+
+    // TypeScriptのエラーを回避するために Array.from を使用します
     // @ts-ignore
     const response = await process.env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-      image: [...new Uint8Array(blob)],
+      image: Array.from(new Uint8Array(arrayBuffer)),
       prompt: "Identify this wine label. Return ONLY a JSON object with: {name_jp, name_en, vintage, variety, sub_region, category, description(short in Japanese)}. If category is Red, White or Sparkling, specify it.",
     });
 
-    // AIの回答からJSON部分を抽出して返す
-    return NextResponse.json(response);
+    // AIの回答を解析（文字列で返ってきた場合を考慮）
+    let result = response.response;
+    if (typeof result === 'string') {
+      try {
+        result = JSON.parse(result.replace(/```json|```/g, '').trim());
+      } catch (e) {
+        // パース失敗時はそのまま返す
+      }
+    }
+
+    return NextResponse.json(result);
   } catch (e) {
+    console.error(e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

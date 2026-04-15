@@ -2,7 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Noto+Sans+JP:wght@300;400;700&display=swap');
+
 body {
-  background-color: black;
-  color: white;
+  background-color: #050505; /* より深い黒 */
+  color: #e5e5e5;
+  font-family: 'Noto Sans JP', sans-serif;
+}
+
+.font-luxury {
+  font-family: 'Playfair Display', serif;
+}
+
+/* 背景にうっすらと高級感を出すグラデーション */
+.bg-luxury-gradient {
+  background: radial-gradient(circle at top center, #1a1a1a 0%, #050505 100%);
 }

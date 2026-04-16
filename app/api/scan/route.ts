@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     if (!AI) throw new Error("AI binding is missing");
 
     // 写真を見て情報を抽出する「Llama 3.2 Vision」を使用
-    const response = await AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
+    const response = await AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
       prompt: "Extract wine details from this image. Return ONLY a JSON object with keys: name, country, region, grape, vintage, category.",
       image: [...new Uint8Array(imageBuffer)]
     });

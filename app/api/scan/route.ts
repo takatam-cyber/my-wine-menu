@@ -1,21 +1,17 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
-// Cloudflareの環境変数にアクセスするためのツールを読み込む
-import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(req: Request) {
   try {
     const { image } = await req.json();
+    
+    // シンプルに環境変数から取得（これが一番エラーになりません）
+    const API_KEY = process.env.GEMINI_API_KEY; 
+    const MODEL_NAME = "gemini-1.5-flash"; 
 
-    // Cloudflare Pages専用の環境変数取得ルーチン
-    const env = getRequestContext().env;
-    const API_KEY = env.GEMINI_API_KEY; 
-    const MODEL_NAME = "gemini-2.0-flash"; 
-
-    // 診断：もしキーが見つからない場合
     if (!API_KEY) {
       return NextResponse.json({ 
-        error: "API_KEY_NOT_FOUND: Cloudflareのダッシュボードで 'GEMINI_API_KEY' が正しく設定されているか確認し、設定後に必ず【再デプロイ】してください。" 
+        error: "API_KEY_MISSING: Cloudflareの『環境変数』に GEMINI_API_KEY が設定されていないか、反映されていません。" 
       }, { status: 500 });
     }
 
@@ -25,8 +21,7 @@ export async function POST(req: Request) {
       new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    const promptText = "ワインラベルを分析してJSONで返してください。項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice";
-
+    // Gemini APIへのリクエスト
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
       {
@@ -35,7 +30,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: promptText },
+              { text: "ワインラベルを分析してJSONで返してください。項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice" },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } }
             ]
           }],
@@ -53,6 +48,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ result: resultText });
 
   } catch (e: any) {
-    return NextResponse.json({ error: `Analysis Error: ${e.message}` }, { status: 500 });
+    return NextResponse.json({ error: `System Error: ${e.message}` }, { status: 500 });
   }
 }

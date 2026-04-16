@@ -5,9 +5,13 @@ export async function POST(req: Request) {
   try {
     const { image } = await req.json();
     
-    // Cloudflareの環境変数、または直接記述
-    const API_KEY = "AIzaSyDGgqblldNSZ5KlA2bmHYNSO4ulUzBkkg0"; 
+    // コードに直接書かず、Cloudflareの「金庫」から呼び出す
+    const API_KEY = process.env.GEMINI_API_KEY; 
     const MODEL_NAME = "gemini-3-flash"; 
+
+    if (!API_KEY) {
+      return NextResponse.json({ error: "APIキーが設定されていません" }, { status: 500 });
+    }
 
     const imageRes = await fetch(image);
     const imageData = await imageRes.arrayBuffer();
@@ -15,24 +19,8 @@ export async function POST(req: Request) {
       new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // スプレッドシートの項目（画像から抽出した構成）に基づいた指示
-    const promptText = `
-      あなたは世界最高峰のソムリエです。このワインラベルを分析し、指定された形式のJSONでのみ回答してください。
-      
-      【抽出項目とルール】
-      1. name_jp: ワインのカタカナ正式名称
-      2. name_en: ワインのアルファベット表記
-      3. country: 生産国
-      4. region: 産地（詳細な地区まで）
-      5. grape: 使用品種（複数の場合はカンマ区切り。例: メルロ、シラー）
-      6. type: タイプ（例: 赤 / フルボディ、白 / 辛口 など）
-      7. vintage: ヴィンテージ（西暦4桁）
-      8. price: 日本のレストランでの標準的な販売価格の数値予想
-      9. cost: 一般的な卸値（仕入れ値）の数値予想
-      10. advice: 「オススメ解説」欄に入れる、お客様の心を掴むプロのテイスティングノートとペアリング提案（2〜3文）
-
-      返信は必ず純粋なJSONオブジェクトのみにしてください。説明文は不要です。
-    `;
+    const promptText = `あなたは世界最高峰のソムリエです。このワインラベルを分析し、指定された形式のJSONでのみ回答してください。
+      項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,

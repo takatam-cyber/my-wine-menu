@@ -3,28 +3,37 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { image } = await req.json();
-    if (!image) return NextResponse.json({ error: "No image" }, { status: 400 });
+    let imageBuffer: ArrayBuffer;
 
-    // Base64デコード（標準的なWeb APIを使用）
-    const base64Data = image.split(',')[1];
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    // データの受け取り方を柔軟にします
+    const contentType = req.headers.get('content-type') || '';
+    
+    if (contentType.includes('multipart/form-data')) {
+      // 封筒（FormData）で届いた場合
+      const formData = await req.formData();
+      const file = formData.get('file') as File || formData.get('image') as File;
+      if (!file) return NextResponse.json({ error: "No file in form" }, { status: 400 });
+      imageBuffer = await file.arrayBuffer();
+    } else {
+      // JSONで届いた場合
+      const { image } = await req.json();
+      const base64Data = image.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      imageBuffer = bytes.buffer;
     }
 
     // @ts-ignore
     const AI = process.env.AI;
     if (!AI) throw new Error("AI binding is missing");
 
-    /**
-     * 最新の強力なVisionモデル（Llama 3.2 11B）を使用します。
-     * 写真を見て、ワインのラベル情報を解析するよう指示しています。
-     */
+    // 写真を見て情報を抽出する「Llama 3.2 Vision」を使用
     const response = await AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-      prompt: "Analyze this wine label. Tell me the wine name, country, region, grape variety, and vintage. Return the result in a clear format.",
-      image: [...bytes]
+      prompt: "Extract wine details from this image. Return ONLY a JSON object with keys: name, country, region, grape, vintage, category.",
+      image: [...new Uint8Array(imageBuffer)]
     });
 
     return NextResponse.json({ result: response });

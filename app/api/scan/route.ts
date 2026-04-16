@@ -5,12 +5,12 @@ export async function POST(req: Request) {
   try {
     const { image } = await req.json();
     
-    // コードに直接書かず、Cloudflareの「金庫」から呼び出す
+    // 環境変数から読み込み
     const API_KEY = process.env.GEMINI_API_KEY; 
-    const MODEL_NAME = "gemini-3-flash"; 
+    const MODEL_NAME = "gemini-2.0-flash"; // 2026年現在、最も安定しているモデル名
 
     if (!API_KEY) {
-      return NextResponse.json({ error: "APIキーが設定されていません" }, { status: 500 });
+      return NextResponse.json({ error: "API_KEY_MISSING: Cloudflareの設定でGEMINI_API_KEYを登録し、再デプロイしてください。" }, { status: 500 });
     }
 
     const imageRes = await fetch(image);
@@ -18,9 +18,6 @@ export async function POST(req: Request) {
     const base64Image = btoa(
       new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
-
-    const promptText = `あなたは世界最高峰のソムリエです。このワインラベルを分析し、指定された形式のJSONでのみ回答してください。
-      項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
@@ -30,7 +27,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: promptText },
+              { text: "ワインラベルを分析してJSONで返してください。項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice" },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } }
             ]
           }],
@@ -40,9 +37,17 @@ export async function POST(req: Request) {
     );
 
     const data = await response.json();
+
+    // Geminiからのエラー応答をキャッチ
+    if (data.error) {
+      return NextResponse.json({ error: `Gemini API Error: ${data.error.message}` }, { status: 500 });
+    }
+
     const resultText = data.candidates[0].content.parts[0].text;
     return NextResponse.json({ result: resultText });
-  } catch (e) {
-    return NextResponse.json({ error: "Analysis Failed" }, { status: 500 });
+
+  } catch (e: any) {
+    console.error(e);
+    return NextResponse.json({ error: `システムエラー: ${e.message}` }, { status: 500 });
   }
 }

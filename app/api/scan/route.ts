@@ -3,38 +3,32 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    let imageBuffer: ArrayBuffer;
-    const contentType = req.headers.get('content-type') || '';
-    
-    if (contentType.includes('multipart/form-data')) {
-      const formData = await req.formData();
-      const file = formData.get('file') as File || formData.get('image') as File;
-      if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
-      imageBuffer = await file.arrayBuffer();
-    } else {
-      const { image } = await req.json();
-      const base64Data = image.split(',')[1];
-      imageBuffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer;
-    }
+    const { image } = await req.json();
+    if (!image) return NextResponse.json({ error: "No image URL" }, { status: 400 });
+
+    // URL（R2）から画像を取得
+    const imageRes = await fetch(image);
+    const arrayBuffer = await imageRes.arrayBuffer();
 
     // @ts-ignore
     const AI = process.env.AI;
+    if (!AI) throw new Error("AI binding missing");
 
-    // AIへの命令：name_en以外はすべて日本語にするよう指示
+    // 日本語で出力するよう厳密に指示
     const response = await AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
       prompt: `Analyze this wine label. 
       Return ONLY a JSON object with these keys:
-      - name_jp: Wine name in Japanese Katakana
-      - name_en: Wine name in English Alphabet
-      - country: Country name in Japanese
-      - region: Region name in Japanese
-      - grape: Grape varieties in Japanese
-      - vintage: Year
-      - taste: Summary of taste in Japanese
-      - description: Background/History in Japanese
+      - name_jp: ワイン名（カタカナ）
+      - name_en: Wine name (Alphabet)
+      - country: 国名（日本語）
+      - region: 産地（日本語）
+      - grape: 品種（日本語）
+      - vintage: 西暦
+      - taste: 味わいの特徴（日本語で2〜3行）
+      - description: ワインの紹介文（日本語で3〜4行）
       
-      IMPORTANT: All values MUST be in Japanese (except name_en).`,
-      image: [...new Uint8Array(imageBuffer)]
+      IMPORTANT: All fields except 'name_en' MUST be in Japanese.`,
+      image: [...new Uint8Array(arrayBuffer)]
     });
 
     return NextResponse.json({ result: response });

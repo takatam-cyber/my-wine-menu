@@ -5,18 +5,35 @@ export async function POST(req: Request) {
   try {
     const { image } = await req.json();
     
-    // Cloudflareの環境変数に登録するか、直接ここに貼り付けてください
+    // Cloudflareの環境変数、または直接記述
     const API_KEY = "AIzaSyDGgqblldNSZ5KlA2bmHYNSO4ulUzBkkg0"; 
-    const MODEL_NAME = "gemini-3-flash"; // 2026年最新の高速思考モデル
+    const MODEL_NAME = "gemini-3-flash"; 
 
-    // 画像データの準備
     const imageRes = await fetch(image);
     const imageData = await imageRes.arrayBuffer();
     const base64Image = btoa(
       new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // Gemini APIへのリクエスト (JSONモード)
+    // スプレッドシートの項目（画像から抽出した構成）に基づいた指示
+    const promptText = `
+      あなたは世界最高峰のソムリエです。このワインラベルを分析し、指定された形式のJSONでのみ回答してください。
+      
+      【抽出項目とルール】
+      1. name_jp: ワインのカタカナ正式名称
+      2. name_en: ワインのアルファベット表記
+      3. country: 生産国
+      4. region: 産地（詳細な地区まで）
+      5. grape: 使用品種（複数の場合はカンマ区切り。例: メルロ、シラー）
+      6. type: タイプ（例: 赤 / フルボディ、白 / 辛口 など）
+      7. vintage: ヴィンテージ（西暦4桁）
+      8. price: 日本のレストランでの標準的な販売価格の数値予想
+      9. cost: 一般的な卸値（仕入れ値）の数値予想
+      10. advice: 「オススメ解説」欄に入れる、お客様の心を掴むプロのテイスティングノートとペアリング提案（2〜3文）
+
+      返信は必ず純粋なJSONオブジェクトのみにしてください。説明文は不要です。
+    `;
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
       {
@@ -25,7 +42,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "あなたは世界最高峰のソムリエです。このワインラベル画像を詳細に分析し、以下の項目を正確に抽出して日本語のJSON形式でのみ返してください。余計な説明（'Producer Name:'など）は一切不要です。\n\n項目:\nname_jp(カタカナ名),\nname_en(正式英語名),\ncountry(国),\nregion(産地),\ngrape(品種),\ntype(赤/白/泡/ロゼ/甘口),\nvintage(年),\nadvice(味わいと、このワインを最高に楽しむためのお客様へのオススメ提案)" },
+              { text: promptText },
               { inline_data: { mime_type: "image/jpeg", data: base64Image } }
             ]
           }],
@@ -35,12 +52,9 @@ export async function POST(req: Request) {
     );
 
     const data = await response.json();
-    if (!data.candidates) throw new Error("Gemini API Error");
-    
     const resultText = data.candidates[0].content.parts[0].text;
     return NextResponse.json({ result: resultText });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Gemini Analysis Failed" }, { status: 500 });
+    return NextResponse.json({ error: "Analysis Failed" }, { status: 500 });
   }
 }

@@ -1,52 +1,69 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
-  try {
-    // @ts-ignore
-    const KV = process.env.WINE_KV;
-    const list = await KV.list();
-    const wines = await Promise.all(
-      list.keys.map(async (k: any) => JSON.parse(await KV.get(k.name)))
-    );
-    // ID順に並び替え
-    return NextResponse.json(wines.sort((a, b) => Number(a.id) - Number(b.id)));
-  } catch (e) {
-    return NextResponse.json([]);
+// 認証チェック関数
+const verifyStore = async (req: Request, KV: any) => {
+  const storeId = req.headers.get('x-store-id');
+  const password = req.headers.get('x-store-password');
+  if (!storeId || !password) return null;
+
+  // 実際はここで「店舗情報のKV」を確認するが、
+  // 初回は「ログインしたパスワード」をその店舗の正解として保存する仕組みに
+  const savedPass = await KV.get(`auth:${storeId}`);
+  if (!savedPass) {
+    await KV.put(`auth:${storeId}`, password); // 初回登録
+    return storeId;
   }
+  return savedPass === password ? storeId : null;
+};
+
+export async function GET(req: Request) {
+  // @ts-ignore
+  const KV = process.env.WINE_KV;
+  const url = new URL(req.url);
+  const storeId = url.searchParams.get('storeId'); // 公開メニュー用
+  
+  // 管理画面からのアクセスの場合は認証を確認
+  const authStoreId = await verifyStore(req, KV);
+  const targetId = authStoreId || storeId;
+
+  if (!targetId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const list = await KV.list({ prefix: `data:${targetId}:` });
+  const wines = await Promise.all(
+    list.keys.map(async (k: any) => JSON.parse(await KV.get(k.name)))
+  );
+  return NextResponse.json(wines.sort((a, b) => Number(a.id) - Number(b.id)));
 }
 
 export async function POST(req: Request) {
-  try {
-    const wine = await req.json();
-    // @ts-ignore
-    const KV = process.env.WINE_KV;
+  // @ts-ignore
+  const KV = process.env.WINE_KV;
+  const authStoreId = await verifyStore(req, KV);
+  if (!authStoreId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    let finalId = wine.id;
+  const wine = await req.json();
+  let id = wine.id;
 
-    // IDが新規（空または自動生成前）の場合、最大のID+1を割り当てる
-    if (!finalId || finalId.length > 5) { // タイムスタンプ等の長いIDもリセット対象
-      const list = await KV.list();
-      const ids = list.keys.map((k: any) => parseInt(k.name)).filter((n: any) => !isNaN(n));
-      const maxId = ids.length > 0 ? Math.max(...ids) : 0;
-      finalId = String(maxId + 1);
-    }
-
-    const updatedWine = { ...wine, id: finalId };
-    await KV.put(finalId, JSON.stringify(updatedWine));
-    return NextResponse.json({ success: true, id: finalId });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+  // 新規登録時の連番生成
+  if (!id) {
+    const list = await KV.list({ prefix: `data:${authStoreId}:` });
+    const ids = list.keys.map((k: any) => parseInt(k.name.split(':').pop())).filter((n: any) => !isNaN(n));
+    id = String((ids.length > 0 ? Math.max(...ids) : 0) + 1);
   }
+
+  const wineData = { ...wine, id };
+  await KV.put(`data:${authStoreId}:${id}`, JSON.stringify(wineData));
+  return NextResponse.json({ success: true, id });
 }
 
 export async function DELETE(req: Request) {
-  try {
-    const { id } = await req.json();
-    // @ts-ignore
-    await process.env.WINE_KV.delete(String(id));
-    return NextResponse.json({ success: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
-  }
+  // @ts-ignore
+  const KV = process.env.WINE_KV;
+  const authStoreId = await verifyStore(req, KV);
+  if (!authStoreId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await req.json();
+  await KV.delete(`data:${authStoreId}:${id}`);
+  return NextResponse.json({ success: true });
 }

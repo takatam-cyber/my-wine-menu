@@ -7,23 +7,22 @@ export async function POST(req: Request) {
     if (!image) return NextResponse.json({ error: "No image" }, { status: 400 });
 
     const base64Data = image.split(',')[1];
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
 
     // @ts-ignore
     const AI = process.env.AI;
     if (!AI) throw new Error("AI binding is missing");
 
-    const response = await AI.run('@cf/microsoft/resnet-50', {
-      image: [...bytes]
+    // 写真を見てワインの情報をJSONで返してもらう指示
+    const response = await AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
+      prompt: "Analyze this wine label and return the information in JSON format with keys: name, country, region, grape, vintage, category.",
+      image: [...binaryData]
     });
 
+    // AIの回答を整理して返す
     return NextResponse.json({ result: response });
   } catch (e) {
-    console.error("Scan Error:", e);
+    console.error("Sommelier AI Error:", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

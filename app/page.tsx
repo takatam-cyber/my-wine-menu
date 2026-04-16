@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Wine as WineIcon, Sparkles } from 'lucide-react';
+import { Wine as WineIcon, Sparkles, MapPin, Grape } from 'lucide-react';
 
 export default function Home() {
   const [wines, setWines] = useState([]);
@@ -11,41 +11,49 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#0f1115] text-[#d4af37] p-8 font-serif">
-      <div className="max-w-5xl mx-auto border border-[#d4af37]/20 p-12 rounded-[3rem]">
-        <header className="text-center mb-20">
-          <h1 className="text-5xl font-light tracking-[0.3em] mb-4 text-[#f1f1f1]">THE CELLAR</h1>
-          <div className="h-[1px] w-24 bg-[#d4af37] mx-auto opacity-50"></div>
-          <p className="mt-6 text-sm tracking-widest text-slate-400">Exclusive Wine Selection</p>
+    <main className="min-h-screen bg-[#0d0e12] text-[#c5a059] p-8 font-serif">
+      <div className="max-w-5xl mx-auto border border-[#c5a059]/20 p-12 rounded-[3rem] bg-[#14161c] shadow-2xl">
+        <header className="text-center mb-24">
+          <p className="text-[10px] tracking-[0.5em] mb-4 opacity-60">VINTAGE COLLECTION</p>
+          <h1 className="text-6xl font-light tracking-[0.2em] mb-8 text-[#f8f8f8]">WINE LIST</h1>
+          <div className="h-[1px] w-32 bg-[#c5a059] mx-auto opacity-40"></div>
         </header>
 
-        <div className="grid grid-cols-1 gap-24">
+        <div className="grid grid-cols-1 gap-32">
           {wines.filter(w => parseInt(w.stock) > 0).map((wine: any) => (
-            <div key={wine.id} className="flex flex-col md:flex-row gap-16 items-center group">
-              <div className="w-full md:w-1/3 aspect-[3/4] overflow-hidden rounded-sm shadow-2xl grayscale hover:grayscale-0 transition-all duration-1000">
-                <img src={wine.image} className="w-full h-full object-cover" />
+            <div key={wine.id} className="flex flex-col md:flex-row gap-20 items-start">
+              <div className="w-full md:w-2/5 aspect-[3/4] overflow-hidden rounded-lg shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/5 relative group">
+                <img src={wine.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
               </div>
-              <div className="flex-1 space-y-8">
-                <div className="space-y-2">
-                  <p className="text-[#d4af37] text-xs tracking-[0.4em] font-sans font-black uppercase">{wine.country} / {wine.vintage}</p>
-                  <h2 className="text-4xl text-[#f1f1f1] font-light leading-snug">{wine.name_jp}</h2>
-                  <p className="text-2xl mt-4 font-sans text-white">¥ {Number(wine.price).toLocaleString()}</p>
+              
+              <div className="flex-1 space-y-10 pt-4">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-[10px] tracking-[0.3em] font-sans font-black uppercase opacity-60">
+                    <span>{wine.type}</span><span>|</span><span>{wine.country}</span><span>|</span><span>Vintage {wine.vintage}</span>
+                  </div>
+                  <h2 className="text-4xl text-white font-light leading-snug">{wine.name_jp}</h2>
+                  <p className="text-sm tracking-widest opacity-40 italic">{wine.name_en}</p>
+                  <p className="text-3xl font-sans text-white pt-4">¥ {Number(wine.price).toLocaleString()}</p>
                 </div>
 
-                <div className="relative p-8 bg-[#d4af37]/5 rounded-sm border-l-2 border-[#d4af37]/30">
-                  <div className="absolute -top-3 left-4 bg-[#0f1115] px-4 flex items-center gap-2 text-[#d4af37] text-[10px] tracking-widest uppercase font-sans">
+                <div className="grid grid-cols-2 gap-6 py-8 border-y border-white/5 font-sans text-[11px] tracking-widest uppercase">
+                  <div className="flex items-center gap-3"><MapPin size={14}/> {wine.region}</div>
+                  <div className="flex items-center gap-3"><Grape size={14}/> {wine.grape}</div>
+                </div>
+
+                <div className="relative p-8 bg-white/2 rounded-xl border-l-2 border-[#c5a059]/40 backdrop-blur-sm">
+                  <div className="absolute -top-3 left-6 bg-[#14161c] px-4 flex items-center gap-2 text-[#c5a059] text-[9px] tracking-[0.3em] font-sans font-black uppercase">
                     <Sparkles size={12}/> AI Sommelier Advice
                   </div>
-                  <p className="text-lg text-slate-300 leading-relaxed italic">
-                    "{wine.advice || "このワインの持つ本来のポテンシャルを、ぜひお客様の五感でお楽しみください。"}"
+                  <p className="text-lg text-slate-300 leading-relaxed font-light italic">
+                    "{wine.advice || "その土地のテロワールを最大限に表現した、至高の一本です。"}"
                   </p>
                 </div>
               </div>
             </div>
           ))}
         </div>
-
-        {wines.length === 0 && <p className="text-center text-slate-600 tracking-widest py-40">Currently preparing our collection...</p>}
       </div>
     </main>
   );

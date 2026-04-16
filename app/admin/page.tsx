@@ -36,9 +36,11 @@ export default function AdminPage() {
       const { url } = await (await fetch('/api/upload', { method: 'POST', body: formData })).json();
       setNewWine(prev => ({ ...prev, image: url }));
 
-      const { result } = await (await fetch('/api/scan', { method: 'POST', body: JSON.stringify({ image: url }) })).json();
-      const extractedName = result.replace(/Producer Name:|Vintage:/gi, '').trim();
-      const extractedYear = result.match(/\d{4}/)?.[0] || '';
+      const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: url }) });
+      const data = await scanRes.json();
+      let resText = String(data.result).replace(/\\_/g, '_').replace(/```json|```/g, '');
+      const extractedName = resText.replace(/Producer Name:|Vintage:/gi, '').trim();
+      const extractedYear = resText.match(/\d{4}/)?.[0] || '';
       setNewWine(prev => ({ ...prev, name_en: extractedName, vintage: extractedYear }));
     } catch (e) { alert("スキャン失敗"); } finally { setLoading(false); }
   };
@@ -48,7 +50,7 @@ export default function AdminPage() {
     setNewWine({ id:'', name_jp:'', name_en:'', country:'', region:'', grape:'', type:'赤', vintage:'', price:'', cost:'', stock:'0', advice:'', image:'' });
     setEditingId(null);
     fetchWines();
-    alert("台帳に保存しました");
+    alert("保存しました");
   };
 
   const exportCSV = () => {
@@ -57,46 +59,66 @@ export default function AdminPage() {
     const blob = new Blob(["\ufeff" + headers + rows], { type: 'text/csv;charset=utf-8' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "wine_list_inventory.csv";
+    link.download = "wine_list.csv";
     link.click();
   };
 
+  // --- CSVインポート（リセット機能付き） ---
   const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (!confirm("現在のデータをすべて削除し、CSVの内容で上書きしますか？")) return;
+
     const reader = new FileReader();
     reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      const rows = text.split(/\r?\n/).slice(1);
-      for (let row of rows) {
-        if (!row.trim()) continue;
-        const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"')) || [];
-        if (cols.length >= 12) {
-          await fetch('/api/wines', { method: 'POST', body: JSON.stringify({ 
-            id: cols[0], name_jp: cols[1], name_en: cols[2], country: cols[3], region: cols[4], 
-            grape: cols[5], type: cols[6], vintage: cols[7], price: cols[8], cost: cols[9], 
-            stock: cols[10], advice: cols[11], image: cols[12] || ''
-          }) });
+      setLoading(true);
+      try {
+        // 1. 現在の全データを削除（リセット）
+        for (const wine of wines) {
+          await fetch('/api/wines', { 
+            method: 'DELETE', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: wine.id }) 
+          });
         }
+
+        // 2. CSV読み込み
+        const text = event.target?.result as string;
+        const rows = text.split(/\r?\n/).slice(1);
+        
+        for (let row of rows) {
+          if (!row.trim()) continue;
+          const cols = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g)?.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"')) || [];
+          if (cols.length >= 12) {
+            await fetch('/api/wines', { method: 'POST', body: JSON.stringify({ 
+              id: cols[0], name_jp: cols[1], name_en: cols[2], country: cols[3], region: cols[4], 
+              grape: cols[5], type: cols[6], vintage: cols[7], price: cols[8], cost: cols[9], 
+              stock: cols[10], advice: cols[11], image: cols[12] || ''
+            }) });
+          }
+        }
+        await fetchWines();
+        alert("データのリセットとインポートが完了しました");
+      } catch (err) {
+        alert("エラーが発生しました");
+      } finally {
+        setLoading(false);
       }
-      fetchWines();
-      alert("CSV同期を完了しました");
     };
     reader.readAsText(file);
   };
 
   return (
     <div className="max-w-md mx-auto p-4 bg-slate-50 min-h-screen text-black pb-24 font-sans">
-      {/* メインアクション：撮影ボタン */}
       <div className="sticky top-0 z-30 py-4 bg-slate-50/90 backdrop-blur">
         <label className="bg-black text-white w-full py-5 rounded-2xl font-black flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all cursor-pointer">
           {loading ? <Loader2 className="animate-spin" /> : <Camera size={24}/>}
-          <span className="text-lg">ラベルを撮って登録</span>
+          <span className="text-lg">撮影して登録開始</span>
           <input type="file" accept="image/*" capture="environment" onChange={handleScan} className="hidden" />
         </label>
       </div>
 
-      {/* 入力フォーム */}
       <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-200 mb-8 space-y-6">
         <div className="flex justify-between items-center px-2">
            <span className="text-slate-400 font-black text-[10px] uppercase tracking-widest">ID: {newWine.id ? `#${newWine.id}` : 'Auto Gen'}</span>
@@ -175,7 +197,6 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* CSVアクション */}
       <div className="flex gap-2 mb-12 px-2">
         <button onClick={exportCSV} className="flex-1 bg-white border border-slate-200 py-4 rounded-xl font-black text-[10px] flex items-center justify-center gap-2 shadow-sm"><Download size={16}/> CSV出力</button>
         <label className="flex-1 bg-white border border-slate-200 py-4 rounded-xl font-black text-[10px] flex items-center justify-center gap-2 shadow-sm cursor-pointer">
@@ -183,11 +204,10 @@ export default function AdminPage() {
         </label>
       </div>
 
-      {/* 在庫クイック管理リスト */}
       <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4 px-2">Inventory Quick Update</h2>
       <div className="space-y-3">
         {wines.map((wine: any) => (
-          <div key={wine.id} className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-sm border border-slate-200">
+          <div key={wine.id} className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-sm border border-slate-100">
             <img src={wine.image} className="w-16 h-16 rounded-2xl object-cover border border-slate-50 shadow-inner" />
             <div className="flex-1 min-w-0">
               <p className="font-black text-sm truncate">#{wine.id} {wine.name_jp || 'No Name'}</p>

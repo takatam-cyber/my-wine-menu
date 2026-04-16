@@ -6,23 +6,25 @@ export async function POST(req: Request) {
     const { image } = await req.json();
     const API_KEY = process.env.GEMINI_API_KEY; 
 
-    // 最も安定している 1.5 Flash モデルに変更
+    // 安定版の 1.5 Flash を指定
     const MODEL_NAME = "gemini-1.5-flash"; 
 
     if (!API_KEY) {
       return NextResponse.json({ error: "APIキーが設定されていません" }, { status: 500 });
     }
 
+    // 画像データの取得
     const imageRes = await fetch(image);
     const imageData = await imageRes.arrayBuffer();
-    const base64Image = btoa(
-      new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
-    );
+    
+    // Edge Runtime で効率的に Base64 変換を行う手法
+    const base64Image = Buffer.from(imageData).toString('base64');
 
     const promptText = "世界最高のソムリエとしてラベルを分析し、JSONで返してください。項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice";
 
+    // エンドポイントを v1beta から v1 へ変更（安定版を利用）
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
           }],
           generationConfig: { 
             response_mime_type: "application/json",
-            temperature: 0.4 // 精度を上げるために少し低めに設定
+            temperature: 0.4
           }
         })
       }
@@ -43,18 +45,27 @@ export async function POST(req: Request) {
 
     const data = await response.json();
 
-    // クォータエラーなどの詳細なエラーハンドリング
-    if (data.error) {
-      if (data.error.code === 429) {
+    // エラーハンドリングの強化
+    if (!response.ok || data.error) {
+      console.error("Gemini API Error Detail:", data.error);
+      const errorMessage = data.error?.message || "不明なAPIエラーが発生しました";
+      
+      if (data.error?.code === 429) {
         return NextResponse.json({ error: "AIが少し混み合っています。1分ほど待ってからもう一度お試しください。" }, { status: 429 });
       }
-      return NextResponse.json({ error: `Gemini API Error: ${data.error.message}` }, { status: 500 });
+      return NextResponse.json({ error: `Gemini API Error: ${errorMessage}` }, { status: 500 });
+    }
+
+    // 候補が存在するかチェック
+    if (!data.candidates || data.candidates.length === 0) {
+      return NextResponse.json({ error: "AIからの回答が得られませんでした。別の画像を試してください。" }, { status: 500 });
     }
 
     const resultText = data.candidates[0].content.parts[0].text;
     return NextResponse.json({ result: resultText });
 
   } catch (e: any) {
+    console.error("System Error:", e);
     return NextResponse.json({ error: `システムエラー: ${e.message}` }, { status: 500 });
   }
 }

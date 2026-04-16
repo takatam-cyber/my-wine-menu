@@ -9,11 +9,13 @@ export async function POST(req: Request) {
 
     const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
     
+    // Cloudflare R2に保存
     // @ts-ignore
     await process.env.WINE_IMAGES.put(fileName, file.stream(), {
       httpMetadata: { contentType: file.type }
     });
 
+    // あなたのR2公開URL
     const publicBaseUrl = "https://pub-8c250d9c7f3844fdbb17adeaae8d32b1.r2.dev"; 
     const imageUrl = `${publicBaseUrl}/${fileName}`;
 

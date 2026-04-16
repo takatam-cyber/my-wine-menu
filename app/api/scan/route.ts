@@ -1,15 +1,22 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
+// Cloudflareの環境変数にアクセスするためのツールを読み込む
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(req: Request) {
   try {
     const { image } = await req.json();
-    const API_KEY = process.env.GEMINI_API_KEY; 
-    const MODEL_NAME = "gemini-3-flash"; 
 
-    // 診断1: キーの有無を確認
+    // Cloudflare Pages専用の環境変数取得ルーチン
+    const env = getRequestContext().env;
+    const API_KEY = env.GEMINI_API_KEY; 
+    const MODEL_NAME = "gemini-2.0-flash"; 
+
+    // 診断：もしキーが見つからない場合
     if (!API_KEY) {
-      return NextResponse.json({ error: "API_KEY_NOT_FOUND: Cloudflareの設定でGEMINI_API_KEYが保存されていないか、再ビルドが必要です。" }, { status: 500 });
+      return NextResponse.json({ 
+        error: "API_KEY_NOT_FOUND: Cloudflareのダッシュボードで 'GEMINI_API_KEY' が正しく設定されているか確認し、設定後に必ず【再デプロイ】してください。" 
+      }, { status: 500 });
     }
 
     const imageRes = await fetch(image);
@@ -38,8 +45,6 @@ export async function POST(req: Request) {
     );
 
     const data = await response.json();
-
-    // 診断2: Gemini API側のエラーを確認
     if (data.error) {
       return NextResponse.json({ error: `Gemini API Error: ${data.error.message}` }, { status: 500 });
     }

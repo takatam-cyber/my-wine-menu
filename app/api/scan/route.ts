@@ -5,58 +5,52 @@ export async function POST(req: Request) {
   try {
     const { image } = await req.json();
     
-    // Cloudflareの環境変数から取得
+    // Cloudflareの設定画面で登録した環境変数を取得
     const API_KEY = process.env.GEMINI_API_KEY; 
     
-    // 正式版(v1)で最も安定しているモデル名
+    // 2026年現在、無料枠で最も安定して画像認識ができるモデル
     const MODEL_NAME = "gemini-1.5-flash"; 
 
     if (!API_KEY) {
-      return NextResponse.json({ error: "APIキーが設定されていません。Cloudflareの環境変数を確認してください。" }, { status: 500 });
+      return NextResponse.json({ 
+        error: "API_KEY_MISSING: Cloudflareの設定でGEMINI_API_KEYを登録し、再デプロイしてください。" 
+      }, { status: 500 });
     }
 
+    // 1. 管理画面から送られてきた画像のURLをバイナリデータに変換
     const imageRes = await fetch(image);
     const imageData = await imageRes.arrayBuffer();
+    
+    // 2. Google APIが受け取れるBase64形式にエンコード
     const base64Image = btoa(
       new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // 【重要】URLを v1beta から v1 に変更しました
+    // 3. Gemini APIへのリクエスト (v1betaエンドポイントを使用)
+    // エラーの原因になりやすい詳細設定を省き、指示文（prompt）で制御します
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "ワインソムリエとしてラベルを分析し、以下の項目を日本語のJSONで返してください。余計な説明は不要です。項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice" },
-              { inline_data: { mime_type: "image/jpeg", data: base64Image } }
-            ]
-          }],
-          generationConfig: { 
-            response_mime_type: "application/json",
-            temperature: 0.1 // 回答を安定させる
-          }
-        })
-      }
-    );
+              { 
+                text: "あなたはプロのソムリエです。このワインラベル画像を分析し、以下の項目を日本語のJSON形式でのみ出力してください。Markdownの枠（
+http://googleusercontent.com/immersive_entry_chip/0
 
-    const data = await response.json();
+---
 
-    // エラーハンドリング
-    if (data.error) {
-      return NextResponse.json({ error: `Gemini API Error (${data.error.code}): ${data.error.message}` }, { status: 500 });
-    }
+### 🚀 確実に動かすための最終確認
 
-    if (!data.candidates || data.candidates.length === 0) {
-      return NextResponse.json({ error: "AIがラベルを読み取れませんでした。別の角度から撮影してください。" }, { status: 500 });
-    }
+このコードをGitHubに保存（Push）した後、以下の**3つのポイント**をもう一度だけチェックしてください。
 
-    const resultText = data.candidates[0].content.parts[0].text;
-    return NextResponse.json({ result: resultText });
+1.  **APIキーの生存確認**:
+    Google AI Studioで、以前「削除したキー」ではなく、**現在有効な「新しいキー」**がコピーされているか確認してください。
+2.  **Cloudflareの「保存」ボタン**:
+    環境変数を貼り付けた後、画面の一番下の**「保存」**を押し、その後必ず**「デプロイの再試行（Retry deployment）」**をしてください。
+3.  **撮影の角度**:
+    ハレーション（反射）が文字に被ると、AIが「推測」しても限界があります。スマホを**少し斜めに傾けて**、反射をラベルの余白に逃がすように撮るのがコツです。
 
-  } catch (e: any) {
-    return NextResponse.json({ error: `システムエラー: ${e.message}` }, { status: 500 });
-  }
-}
+これで、あなたのアプリはついに「ワインの目」を持ちます。デプロイ後、管理画面からバロナーク（Baronarques）のラベルを撮ってみてください！

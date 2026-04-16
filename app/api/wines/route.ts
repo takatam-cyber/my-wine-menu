@@ -1,7 +1,7 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 
-// ワイン一覧の取得
+// 全ワイン取得
 export async function GET() {
   try {
     // @ts-ignore
@@ -10,13 +10,13 @@ export async function GET() {
     const wines = await Promise.all(
       list.keys.map(async (k: any) => JSON.parse(await KV.get(k.name)))
     );
-    return NextResponse.json(wines.sort((a, b) => b.id - a.id));
+    return NextResponse.json(wines.sort((a, b) => Number(b.id) - Number(a.id)));
   } catch (e) {
     return NextResponse.json([]);
   }
 }
 
-// 新規登録・更新（共通）
+// 登録・更新
 export async function POST(req: Request) {
   try {
     const wine = await req.json();
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   }
 }
 
-// 削除機能
+// 削除
 export async function DELETE(req: Request) {
   try {
     const { id } = await req.json();

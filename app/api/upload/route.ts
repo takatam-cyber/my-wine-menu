@@ -13,13 +13,16 @@ export async function POST(req: Request) {
     const BUCKET = process.env.WINE_IMAGES;
     if (!BUCKET) throw new Error("R2 Bucket not found");
 
-    await BUCKET.put(fileName, file.stream(), {
+    // ArrayBufferを使ってより標準的な方法で保存
+    const arrayBuffer = await file.arrayBuffer();
+    await BUCKET.put(fileName, arrayBuffer, {
       httpMetadata: { contentType: file.type }
     });
 
     const publicBaseUrl = "https://pub-8c250d9c7f3844fdbb17adeaae8d32b1.r2.dev"; 
     return NextResponse.json({ url: `${publicBaseUrl}/${fileName}` });
   } catch (e) {
+    console.error("Upload Error:", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

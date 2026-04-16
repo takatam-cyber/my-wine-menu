@@ -4,30 +4,23 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const { image } = await req.json();
-    
-    // Cloudflareの設定画面で登録した環境変数を取得
     const API_KEY = process.env.GEMINI_API_KEY; 
-    
-    // 2026年現在、無料枠で最も安定して画像認識ができるモデル
+
+    // 最も安定している 1.5 Flash モデルに変更
     const MODEL_NAME = "gemini-1.5-flash"; 
 
     if (!API_KEY) {
-      return NextResponse.json({ 
-        error: "API_KEY_MISSING: Cloudflareの設定でGEMINI_API_KEYを登録し、再デプロイしてください。" 
-      }, { status: 500 });
+      return NextResponse.json({ error: "APIキーが設定されていません" }, { status: 500 });
     }
 
-    // 1. 管理画面から送られてきた画像のURLをバイナリデータに変換
     const imageRes = await fetch(image);
     const imageData = await imageRes.arrayBuffer();
-    
-    // 2. Google APIが受け取れるBase64形式にエンコード
     const base64Image = btoa(
       new Uint8Array(imageData).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // 3. Gemini APIへのリクエスト (v1betaエンドポイントを使用)
-    // エラーの原因になりやすい詳細設定を省き、指示文（prompt）で制御します
+    const promptText = "世界最高のソムリエとしてラベルを分析し、JSONで返してください。項目: name_jp, name_en, country, region, grape, type, vintage, price, cost, advice";
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`,
       {
@@ -36,21 +29,32 @@ export async function POST(req: Request) {
         body: JSON.stringify({
           contents: [{
             parts: [
-              { 
-                text: "あなたはプロのソムリエです。このワインラベル画像を分析し、以下の項目を日本語のJSON形式でのみ出力してください。Markdownの枠（
-http://googleusercontent.com/immersive_entry_chip/0
+              { text: promptText },
+              { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+            ]
+          }],
+          generationConfig: { 
+            response_mime_type: "application/json",
+            temperature: 0.4 // 精度を上げるために少し低めに設定
+          }
+        })
+      }
+    );
 
----
+    const data = await response.json();
 
-### 🚀 確実に動かすための最終確認
+    // クォータエラーなどの詳細なエラーハンドリング
+    if (data.error) {
+      if (data.error.code === 429) {
+        return NextResponse.json({ error: "AIが少し混み合っています。1分ほど待ってからもう一度お試しください。" }, { status: 429 });
+      }
+      return NextResponse.json({ error: `Gemini API Error: ${data.error.message}` }, { status: 500 });
+    }
 
-このコードをGitHubに保存（Push）した後、以下の**3つのポイント**をもう一度だけチェックしてください。
+    const resultText = data.candidates[0].content.parts[0].text;
+    return NextResponse.json({ result: resultText });
 
-1.  **APIキーの生存確認**:
-    Google AI Studioで、以前「削除したキー」ではなく、**現在有効な「新しいキー」**がコピーされているか確認してください。
-2.  **Cloudflareの「保存」ボタン**:
-    環境変数を貼り付けた後、画面の一番下の**「保存」**を押し、その後必ず**「デプロイの再試行（Retry deployment）」**をしてください。
-3.  **撮影の角度**:
-    ハレーション（反射）が文字に被ると、AIが「推測」しても限界があります。スマホを**少し斜めに傾けて**、反射をラベルの余白に逃がすように撮るのがコツです。
-
-これで、あなたのアプリはついに「ワインの目」を持ちます。デプロイ後、管理画面からバロナーク（Baronarques）のラベルを撮ってみてください！
+  } catch (e: any) {
+    return NextResponse.json({ error: `システムエラー: ${e.message}` }, { status: 500 });
+  }
+}

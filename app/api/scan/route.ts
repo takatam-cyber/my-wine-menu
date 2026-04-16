@@ -12,19 +12,20 @@ export async function POST(req: Request) {
     // @ts-ignore
     const AI = process.env.AI;
 
-    // 命令：アンダースコアにバックスラッシュを入れないよう強調
-    const prompt = `Task: Extract wine label info as PURE JSON.
-    Output fields (In Japanese):
-    - name_jp: Katakana Name
-    - name_en: English Name
-    - country: Country
-    - region: Region
-    - grape: Grape variety
-    - vintage: Year
-    - taste: Flavor summary
-    - description: Background
+    // AIへの究極の指示：name_en以外は徹底して日本語化
+    const prompt = `You are a professional translator and sommelier. Analyze this wine label and output ONLY a JSON object.
     
-    Constraint: Strictly JSON only. No markdown. Use standard underscores for keys.`;
+    Data Requirements:
+    - name_en: Keep as is in English Alphabet (exact transcription from the label).
+    - name_jp: Transliterate the wine name into Japanese Katakana (e.g., "Baron de Rothschild" -> "バロン・ド・ロートシルト").
+    - country: Country name in Japanese (e.g., "France" -> "フランス").
+    - region: Production region in Japanese (e.g., "Bordeaux" -> "ボルドー").
+    - grape: Main varieties in Japanese (e.g., "Cabernet Sauvignon" -> "カベルネ・ソーヴィニヨン").
+    - vintage: The year (number only).
+    - taste: A professional sensory profile in Japanese (2 sentences).
+    - description: Interesting facts or history of this wine in Japanese (3 sentences).
+
+    Constraint: All fields except 'name_en' MUST be in Japanese. Return raw JSON only.`;
 
     const response = await AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
       prompt: prompt,
@@ -32,8 +33,6 @@ export async function POST(req: Request) {
     });
 
     const resultText = response.description || response;
-    console.log("AI_RAW:", resultText);
-
     return NextResponse.json({ result: resultText });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

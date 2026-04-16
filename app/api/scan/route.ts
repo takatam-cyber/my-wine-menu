@@ -7,13 +7,14 @@ export async function POST(req: Request) {
     // @ts-ignore
     const AI = process.env.AI;
 
-    // Llavaに「文字の書き写し」だけを命じる（一番エラーが少ない方法）
+    // 命令を「余計な言葉を一切省け」という指示に強化
     const visionResponse = await AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
-      prompt: "Read the wine label and list only the Producer Name and Vintage Year clearly.",
+      prompt: "Extract the wine producer and the vintage year. Output ONLY the names, no labels like 'Producer Name:' or 'Vintage:'. Example: Mouton Cadet, 2018",
       image: [...new Uint8Array(await (await fetch(image)).arrayBuffer())]
     });
 
-    return NextResponse.json({ result: visionResponse.description || visionResponse });
+    const result = visionResponse.description || visionResponse;
+    return NextResponse.json({ result: result.replace(/Producer Name:|Vintage:/gi, '').trim() });
   } catch (e) {
     return NextResponse.json({ error: "OCR Failed" }, { status: 500 });
   }

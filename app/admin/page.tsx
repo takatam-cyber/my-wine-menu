@@ -18,9 +18,7 @@ export default function AdminPage() {
       const res = await fetch('/api/wines');
       const data = await res.json();
       setWines(Array.isArray(data) ? data : []);
-    } catch (e) {
-      setWines([]);
-    }
+    } catch (e) { setWines([]); }
   };
 
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -33,7 +31,6 @@ export default function AdminPage() {
       formData.append('file', file);
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
       const { url } = await uploadRes.json();
-      
       setNewWine(prev => ({ ...prev, image: url }));
 
       const scanRes = await fetch('/api/scan', {
@@ -43,13 +40,16 @@ export default function AdminPage() {
       });
       const data = await scanRes.json();
       
-      let resText = String(data.result);
+      // 【最強のノイズクリーニング】
+      let resText = String(data.result)
+        .replace(/\\_/g, '_') // AIが入れてしまう \_ を _ に修正
+        .replace(/```json|```/g, ''); // Markdownの枠を削除
+
       const startIdx = resText.indexOf('{');
       const endIdx = resText.lastIndexOf('}');
 
       if (startIdx !== -1 && endIdx !== -1) {
-        const jsonString = resText.substring(startIdx, endIdx + 1);
-        const result = JSON.parse(jsonString);
+        const result = JSON.parse(resText.substring(startIdx, endIdx + 1));
 
         setNewWine(prev => ({
           ...prev,
@@ -65,7 +65,6 @@ export default function AdminPage() {
         }));
       }
     } catch (error) {
-      console.error(error);
       alert("AI分析に失敗しました。手動で入力するか、もう一度お試しください。");
     } finally {
       setLoading(false);
@@ -74,28 +73,25 @@ export default function AdminPage() {
 
   const handleSave = async () => {
     const id = Date.now().toString();
-    await fetch('/api/wines', { 
-      method: 'POST', 
-      body: JSON.stringify({ ...newWine, id }) 
-    });
-    alert("セラーに登録しました！");
+    await fetch('/api/wines', { method: 'POST', body: JSON.stringify({ ...newWine, id }) });
+    alert("登録完了！");
     setNewWine({ name_jp: '', name_en: '', country: '', region: '', grape: '', vintage: '', category: '赤', description: '', taste: '', image: '' });
     fetchWines();
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("このワインを削除しますか？")) return;
+    if (!confirm("削除しますか？")) return;
     await fetch(`/api/wines/${id}`, { method: 'DELETE' });
     fetchWines();
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-slate-50 min-h-screen text-slate-900">
+    <div className="max-w-4xl mx-auto p-6 bg-slate-50 min-h-screen text-slate-900 font-sans">
       <div className="flex justify-between items-center mb-8 border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-extrabold text-slate-800 font-serif">WINE MENU ADMIN</h1>
+        <h1 className="text-3xl font-extrabold text-slate-800 tracking-tighter">WINE MENU ADMIN</h1>
         <label className="bg-slate-800 text-white px-6 py-3 rounded-full flex items-center gap-2 cursor-pointer hover:bg-black transition shadow-lg">
           {loading ? <Loader2 className="animate-spin" /> : <Camera size={20} />}
-          <span className="font-bold">{loading ? "分析中..." : "スキャンして入力"}</span>
+          <span className="font-bold">{loading ? "分析中..." : "ラベルをスキャン"}</span>
           <input type="file" accept="image/*" onChange={handleScan} className="hidden" />
         </label>
       </div>
@@ -136,11 +132,11 @@ export default function AdminPage() {
           <div className="flex flex-col items-center">
             <div className="w-full aspect-[3/4] border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 overflow-hidden flex items-center justify-center">
               {newWine.image ? (
-                <img src={newWine.image} alt="Preview" className="w-full h-full object-cover" />
+                <img src={newWine.image} className="w-full h-full object-cover" />
               ) : (
                 <div className="text-slate-300 flex flex-col items-center gap-2">
                   <WineIcon size={64} strokeWidth={1} />
-                  <span className="text-xs font-bold uppercase">NO IMAGE</span>
+                  <span className="text-xs font-bold uppercase tracking-tighter">No Label Image</span>
                 </div>
               )}
             </div>
@@ -158,25 +154,25 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <button onClick={handleSave} className="w-full mt-10 bg-slate-800 text-white py-5 rounded-2xl font-black text-xl hover:bg-black transition shadow-xl active:scale-95 flex items-center justify-center gap-3">
+        <button onClick={handleSave} className="w-full mt-10 bg-slate-800 text-white py-5 rounded-2xl font-black text-xl hover:bg-black transition shadow-xl active:scale-[0.98] flex items-center justify-center gap-3">
           <Save size={24} />
           <span>セラーに登録する</span>
         </button>
       </div>
 
       <div className="mt-16">
-        <h2 className="text-xl font-bold mb-6 text-slate-400 uppercase tracking-widest">Registered Wines</h2>
+        <h2 className="text-xl font-bold mb-6 text-slate-400 uppercase tracking-widest">Registered Wines ({wines.length})</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {wines.map((wine: any) => (
             <div key={wine.id} className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm relative group">
-              <button onClick={() => handleDelete(wine.id)} className="absolute top-2 right-2 p-2 bg-red-50 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition">
+              <button onClick={() => handleDelete(wine.id)} className="absolute top-2 right-2 p-2 bg-red-50 text-red-500 rounded-full opacity-0 group-hover:opacity-100 transition shadow-sm z-10">
                 <Trash2 size={16} />
               </button>
               <div className="aspect-square rounded-2xl bg-slate-100 mb-3 overflow-hidden">
                 <img src={wine.image} className="w-full h-full object-cover" />
               </div>
               <p className="text-sm font-black truncate">{wine.name_jp}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase">{wine.name_en}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter truncate">{wine.name_en}</p>
             </div>
           ))}
         </div>

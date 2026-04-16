@@ -95,4 +95,36 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <textarea placeholder="ソムリエのオススメコメント" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-5
+          <textarea placeholder="ソムリエのオススメコメント" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl text-black font-bold h-24 border-2 border-slate-100 outline-none" />
+        </div>
+
+        <button onClick={handleSave} className="w-full bg-black text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">保存して台帳に登録</button>
+      </div>
+
+      {/* 在庫一覧 (スマホで見やすいリスト形式) */}
+      <h2 className="font-black mb-4 ml-2 text-slate-400 uppercase tracking-widest text-xs">Cellar Inventory</h2>
+      <div className="space-y-3">
+        {wines.map((wine: any) => (
+          <div key={wine.id} className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-sm border border-slate-100">
+            <img src={wine.image} className="w-16 h-16 rounded-2xl object-cover" />
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm truncate">{wine.name_jp || '名称未設定'}</p>
+              <p className="text-[10px] font-bold text-amber-600">¥{Number(wine.price).toLocaleString()}</p>
+            </div>
+            <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+              <button onClick={() => updateStock(wine, -1)} className="p-1"><Minus size={18}/></button>
+              <span className={`font-black text-lg w-6 text-center ${parseInt(wine.stock) <= 0 ? 'text-red-500' : 'text-black'}`}>{wine.stock}</span>
+              <button onClick={() => updateStock(wine, 1)} className="p-1"><Plus size={18}/></button>
+            </div>
+            <button onClick={() => {setNewWine(wine); setEditingId(wine.id); window.scrollTo(0,0)}} className="p-1 text-slate-300"><Edit3 size={20}/></button>
+          </div>
+        ))}
+      </div>
+      
+      {/* CSV出力ボタン (下の方に配置) */}
+      <div className="mt-10 flex gap-2">
+        <button onClick={() => {/* exportCSVロジック */}} className="flex-1 bg-white border border-slate-200 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 text-slate-500"><Download size={14}/> CSV出力</button>
+      </div>
+    </div>
+  );
+}

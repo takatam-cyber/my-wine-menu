@@ -26,5 +26,5 @@ export async function POST(req: Request) {
     // 2. Base64変換（Edge Runtimeで安全な手法）
     const base64Image = Buffer.from(imageData).toString('base64');
 
-    // 3. プロンプト
+    // 3. プロンプト（JSON出力を厳格に指定）
     const promptText = "世界最高のソムリエとして、提供されたワインラベルの画像を分析してください。結果は必ず純粋なJSON形式のみで返し、Markdownの装飾（

@@ -3,7 +3,7 @@ export const runtime = 'edge';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { Sparkles, MessageCircle, X, Send, Loader2 } from 'lucide-react';
+import { Sparkles, MessageCircle, X, Send, Loader2, Search, Filter } from 'lucide-react';
 
 export default function StoreMenu() {
   const { storeId } = useParams();
@@ -14,23 +14,26 @@ export default function StoreMenu() {
   const [history, setHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
-  // フィルタState
   const [filterColor, setFilterColor] = useState('ALL');
   const [maxPrice, setMaxPrice] = useState(30000);
 
   useEffect(() => {
     if (storeId) {
-      const decodedId = decodeURIComponent(storeId as string);
-      fetch(`/api/wines?storeId=${decodedId}`).then(res => res.json()).then(data => setWines(Array.isArray(data) ? data : []));
-      fetch(`/api/config`, { headers: { 'x-store-id': decodedId } }).then(res => res.json()).then(data => setConfig(data));
+      // エンコードされたID（メールアドレス）を正しくデコード
+      const decodedStoreId = decodeURIComponent(storeId as string);
+      fetch(`/api/wines?storeId=${decodedStoreId}`).then(res => res.json()).then(data => {
+        setWines(Array.isArray(data) ? data : []);
+      });
+      fetch(`/api/config`, { headers: { 'x-store-id': decodedStoreId } }).then(res => res.json()).then(data => setConfig(data));
     }
   }, [storeId]);
 
+  // 在庫があり、フィルタに合致するワインを抽出
   const filteredWines = useMemo(() => {
     return wines.filter((w: any) => {
       const matchColor = filterColor === 'ALL' || w.color === filterColor;
       const matchPrice = Number(w.price) <= maxPrice;
-      const inStock = !w.stock || parseInt(w.stock) > 0;
+      const inStock = !w.stock || parseInt(w.stock) > 0; // 在庫0以外は表示
       return matchColor && matchPrice && inStock;
     });
   }, [wines, filterColor, maxPrice]);
@@ -61,12 +64,12 @@ export default function StoreMenu() {
         <p className="text-[10px] tracking-[0.5em] mt-8 opacity-40 uppercase font-sans font-black tracking-widest">Sommelier Selection</p>
       </header>
 
-      {/* スティッキーフィルタバー */}
+      {/* スティッキー・フィルタバー */}
       <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-md py-6 px-6 border-b border-white/5 space-y-4 shadow-xl">
         <div className="max-w-xl mx-auto flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {['ALL', '赤', '白', '泡'].map(c => (
             <button key={c} onClick={() => setFilterColor(c)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filterColor === c ? 'bg-[#c5a059] text-black' : 'bg-white/10 text-[#c5a059]'}`}>
-              {c === 'ALL' ? 'ALL WINES' : c === '泡' ? 'Sparkling' : c}
+              {c === 'ALL' ? 'ALL' : c === '泡' ? 'Bubble' : c}
             </button>
           ))}
         </div>
@@ -76,36 +79,39 @@ export default function StoreMenu() {
         </div>
       </div>
 
-      <div className="max-w-xl mx-auto px-6 space-y-24 mt-16">
-        {filteredWines.map((wine: any) => (
-          <div key={wine.id} className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="relative aspect-[3/2] rounded-sm overflow-hidden shadow-2xl border border-white/5 bg-[#1a1c23]">
-              {wine.image && <img src={wine.image} className="w-full h-full object-cover opacity-70" />}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent"></div>
-              <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
-                <div className="pr-4">
-                  <p className="text-[10px] tracking-[0.4em] font-sans font-black uppercase text-[#c5a059] opacity-80">{wine.country} / {wine.vintage}</p>
-                  <h2 className="text-3xl text-white font-light leading-tight">{wine.name_jp}</h2>
+      <div className="max-w-xl mx-auto px-6 space-y-16 mt-16">
+        {filteredWines.length === 0 ? (
+          <div className="text-center py-20 opacity-30 font-sans text-sm tracking-widest uppercase">No wines found.</div>
+        ) : (
+          filteredWines.map((wine: any) => (
+            <div key={wine.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <div className="relative aspect-[3/2] rounded-sm overflow-hidden shadow-2xl border border-white/5 bg-[#1a1c23]">
+                {wine.image && <img src={wine.image} className="w-full h-full object-cover opacity-60" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent"></div>
+                <div className="absolute bottom-6 left-6 right-6 flex justify-between items-end">
+                  <div className="pr-4">
+                    <p className="text-[9px] tracking-[0.4em] font-sans font-black uppercase text-[#c5a059] opacity-80">{wine.country} / {wine.vintage}</p>
+                    <h2 className="text-2xl text-white font-light leading-tight">{wine.name_jp}</h2>
+                  </div>
+                  <p className="text-xl font-sans text-white font-bold tracking-tighter">¥{Number(wine.price).toLocaleString()}</p>
                 </div>
-                <p className="text-2xl font-sans text-white font-bold tracking-tighter">¥{Number(wine.price).toLocaleString()}</p>
+              </div>
+              
+              <div className="space-y-6 px-2">
+                <div className="flex flex-wrap gap-4 text-[10px] font-sans font-black uppercase tracking-[0.2em] opacity-40">
+                  <span className="bg-white/10 px-3 py-1 rounded-full">{wine.type}</span>
+                  <span>{wine.region}</span>
+                  <span>{wine.grape}</span>
+                </div>
+                <p className="text-lg text-slate-200 leading-relaxed italic font-light border-l-2 border-[#c5a059]/40 pl-6">"{wine.advice}"</p>
+                {wine.pairing && <div className="pt-2 flex items-center gap-3"><span className="text-[9px] font-sans font-black uppercase tracking-widest text-[#c5a059] opacity-50 px-2 py-1 border border-[#c5a059]/30 rounded">Pairing</span><p className="text-sm font-sans text-white/60">{wine.pairing}</p></div>}
               </div>
             </div>
-            
-            <div className="space-y-8 px-2">
-              <div className="flex flex-wrap gap-4 text-[11px] font-sans font-black uppercase tracking-[0.2em] opacity-40">
-                <span className="bg-white/10 px-3 py-1 rounded-full">{wine.type}</span>
-                <span>{wine.region}</span>
-                <span>{wine.grape}</span>
-              </div>
-              <p className="text-xl text-slate-200 leading-relaxed italic font-light border-l-2 border-[#c5a059]/40 pl-8">"{wine.advice}"</p>
-              {wine.pairing && <div className="pt-4 flex items-center gap-3"><span className="text-[9px] font-sans font-black uppercase tracking-widest text-[#c5a059] opacity-50 px-2 py-1 border border-[#c5a059]/30 rounded">Best Pairing</span><p className="text-sm font-sans text-white/60">{wine.pairing}</p></div>}
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
-      {/* フローティングチャットボタン */}
-      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 hover:scale-110 active:scale-95 transition-all shadow-amber-500/20">
+      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 hover:scale-110 active:scale-95 transition-all">
         <MessageCircle size={32}/>
       </button>
 
@@ -118,7 +124,7 @@ export default function StoreMenu() {
           <div className="flex-1 overflow-y-auto space-y-6 mb-6 px-2 scroll-smooth">
             {history.length === 0 && (
               <div className="space-y-4 pt-10">
-                {['気分に合う赤ワインは？', 'お肉料理に合う重めなのは？', '1万円以下でおすすめは？'].map(q => (
+                {['今の気分に合う赤は？', 'お肉料理に合う重めな一本', '1万円以下でおすすめは？'].map(q => (
                   <button key={q} onClick={() => handleChat(q)} className="w-full text-left p-5 bg-white/5 rounded-2xl text-slate-200 border border-white/10 active:border-[#c5a059] transition-all font-sans text-sm">{q}</button>
                 ))}
               </div>

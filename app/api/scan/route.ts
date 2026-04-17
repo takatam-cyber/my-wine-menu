@@ -8,7 +8,6 @@ export async function POST(req: Request) {
     const { image } = await req.json();
     const env = getRequestContext().env;
 
-    // 画像データのバイナリ化処理
     let imageBuffer: ArrayBuffer;
     if (image.startsWith('http')) {
       const imgRes = await fetch(image);
@@ -23,59 +22,72 @@ export async function POST(req: Request) {
       imageBuffer = bytes.buffer;
     }
 
-    // 指定された詳細なソムリエ・プロンプトを統合
     const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       prompt: `
 # Role
-あなたは世界最高峰のソムリエであり、同時に画像解析とデータ構造化のエキスパートです。
-与えられたワインボトルの画像を詳細に分析し、以下のJSONフォーマットに従って情報を抽出・推論してください。
+あなたは世界最高峰のソムリエ兼データエンジニアです。
+ワイン画像を分析し、以下のJSON形式でデータを出力してください。
 
 # Instructions
-1. **OCR解析**: ラベルに記載されているテキスト（生産者名、銘柄、ヴィンテージ、産地、格付け等）を正確に読み取ってください。
-2. **知識ベースの補完**: 画像から直接読み取れない情報（品種、タイプ、推定価格、味わいの数値評価）については、あなたの膨大なワイン知識ベースから、該当する銘柄・ヴィンテージの標準的なデータを推論して補完してください。
-3. **ソムリエ・アドバイス**: プロのソムリエとして、そのワインの背景、テロワール、造り手のこだわりを含めた魅力的な解説を生成してください。
-4. **出力形式**: 必ず純粋なJSON形式のみを出力し、それ以外の説明テキストは含めないでください。
+1. ラベルから文字を読み取り（生産者、銘柄、年、産地）、読み取れない情報は知識から推論して補完してください。
+2. 解説はソムリエとして情熱的かつエレガントに日本語で作成してください。
+3. 出力は必ず以下の純粋なJSONオブジェクトのみとし、説明文などは一切含めないでください。
 
 # Data Schema
 {
   "name_jp": "カタカナ名",
-  "name_en": "Alphabet Name",
-  "country": "国",
-  "region": "産地 (Appellation)",
-  "grape": "主要な品種（複数ある場合はカンマ区切り）",
-  "color": "赤/白/ロゼ/泡",
-  "type": "ボディ・味わいのタイプ (例: フルボディ, 辛口)",
-  "vintage": "4桁の年号 (不明な場合は null)",
-  "price": "日本国内での推定市場販売価格 (数値のみ)",
-  "cost": "推定仕入価格 (priceの約60-70%を目安とした数値)",
-  "advice": "ソムリエ視点での魅力的な解説文章（200文字程度）",
-  "aroma": "1-5の評価 (香りの強さ)",
-  "pairing": "相性の良い具体的な料理名",
-  "sweetness": "1-5の評価 (甘味)",
-  "body": "1-5の評価 (重さ)",
-  "acidity": "1-5の評価 (酸味)",
-  "tannin": "1-5の評価 (渋み ※白・泡なら0)"
+        "name_en": "Alphabet Name",
+        "country": "国",
+        "region": "産地",
+        "grape": "品種",
+        "color": "赤/白/ロゼ/泡",
+        "type": "フルボディ/辛口など",
+        "vintage": "年",
+        "price": 5000,
+        "cost": 2000,
+        "advice": "ソムリエ風の魅力的な解説",
+        "aroma": "1-5 (香りの強さ)",
+        "pairing": "合う料理",
+        "sweetness": "1-5 (甘味)",
+        "body": "1-5 (重さ)",
+        "acidity": "1-5 (酸味)",
+        "tannin": "1-5 (渋み ※白なら0)"
 }
 
 # Constraint
-- 数値評価（1-5）は、そのワインのカテゴリ（例：ピノ・ノワールならその中での相対評価）に基づいて厳密に行ってください。
-- もし画像から判別が不可能で、かつ知識ベースにもない場合は "Unknown" または null としてください。`,
+- 数値評価は1から5の整数で行ってください。白・泡の場合はtanninは0にしてください。
+- priceとcostはカンマを含まない数値のみとしてください。`,
       image: [...new Uint8Array(imageBuffer)],
     });
 
-    // レスポンスからJSON文字列を抽出する成功ロジック
-    let resultText = aiResponse.response || aiResponse.description || JSON.stringify(aiResponse);
+    // 1. レスポンスの取得（文字列化を確実に行う）
+    let resultText = aiResponse.response || aiResponse.description || (typeof aiResponse === 'string' ? aiResponse : JSON.stringify(aiResponse));
+
+    // 2. Markdownのコードブロック記号 (```json と ```) を除去
+    resultText = resultText.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    // 3. 最も外側の { } を探して切り出す
     const firstBrace = resultText.indexOf('{');
     const lastBrace = resultText.lastIndexOf('}');
     
     if (firstBrace === -1 || lastBrace === -1) {
-      throw new Error("AI could not generate a valid JSON.");
+      console.error("AI Output error:", resultText);
+      throw new Error("AIが有効なJSONを作成できませんでした。");
     }
     
     const cleanJson = resultText.substring(firstBrace, lastBrace + 1);
 
+    // 4. JSONとして成立するか最終確認
+    try {
+      JSON.parse(cleanJson);
+    } catch (e) {
+      console.error("JSON Parse Error:", cleanJson);
+      throw new Error("解析データが破損しています。もう一度お試しください。");
+    }
+
     return NextResponse.json({ result: cleanJson });
   } catch (e: any) {
+    console.error("Scan API Error:", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

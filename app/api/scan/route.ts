@@ -22,16 +22,28 @@ export async function POST(req: Request) {
       imageBuffer = bytes.buffer;
     }
 
-    // AIへの指示を詳細化
     const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       prompt: `Analyze this wine label and return a JSON object in Japanese.
-      Fields: {
-        name_jp, name_en, country, region, grape, color (e.g. 赤, 白, ロゼ), 
-        type (e.g. フルボディ, 辛口), vintage, price (estimate if not on label), 
-        advice (sommelier style), aroma (tags), pairing (matching dishes),
-        sweetness (1-5), body (1-5), acidity (1-5), tannin (1-5)
+      Required JSON structure:
+      {
+        "name_jp": "カタカナ名",
+        "name_en": "Alphabet Name",
+        "country": "国",
+        "region": "産地",
+        "grape": "品種",
+        "color": "赤/白/ロゼ/泡",
+        "type": "フルボディ/辛口など",
+        "vintage": "年",
+        "price": 5000,
+        "advice": "ソムリエ風の解説",
+        "aroma": "香りの特徴",
+        "pairing": "合う料理",
+        "sweetness": 1-5,
+        "body": 1-5,
+        "acidity": 1-5,
+        "tannin": 1-5
       }
-      Return ONLY raw JSON.`,
+      Return ONLY the raw JSON object.`,
       image: [...new Uint8Array(imageBuffer)],
     });
 

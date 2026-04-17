@@ -4,18 +4,21 @@ export const runtime = 'edge';
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Wine as WineIcon, Sparkles, MessageCircle, X, Send, Loader2 } from 'lucide-react';
+import { Sparkles, MessageCircle, X, Send, Loader2 } from 'lucide-react';
 
 export default function StoreMenu() {
   const { storeId } = useParams();
   const [wines, setWines] = useState([]);
+  const [config, setConfig] = useState({ menu_name: '', slug: '' });
   const [chatOpen, setChatOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [history, setHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
+    // 1. まず全ての設定から該当するスラッグを持つ店舗を探す（簡易版：今は storeId = email として処理）
     fetch(`/api/wines?storeId=${storeId}`).then(res => res.json()).then(data => setWines(data));
+    fetch(`/api/config`, { headers: { 'x-store-id': storeId } }).then(res => res.json()).then(data => setConfig(data));
   }, [storeId]);
 
   const handleChat = async () => {
@@ -36,47 +39,58 @@ export default function StoreMenu() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-[#c5a059] font-serif pb-24">
-      <header className="py-20 px-6 text-center">
-        <h1 className="text-4xl font-light tracking-[0.3em] text-[#f8f8f8] uppercase mb-4">{storeId}</h1>
-        <div className="h-[1px] w-20 bg-[#c5a059] mx-auto opacity-30"></div>
+      <header className="py-24 px-6 text-center border-b border-white/5">
+        <h1 className="text-4xl font-light tracking-[0.4em] text-[#f8f8f8] uppercase mb-4">{config.menu_name || 'WINE MENU'}</h1>
+        <div className="h-[1px] w-24 bg-[#c5a059] mx-auto opacity-30"></div>
+        <p className="text-[10px] tracking-[0.5em] mt-8 opacity-40 uppercase font-sans font-black">Sommelier Selection</p>
       </header>
 
-      <div className="max-w-xl mx-auto px-6 space-y-20">
+      <div className="max-w-xl mx-auto px-6 space-y-24 mt-16">
         {wines.filter((w: any) => parseInt(w.stock) > 0).map((wine: any) => (
-          <div key={wine.id} className="group">
-            <div className="relative aspect-[3/4] rounded-sm overflow-hidden shadow-2xl mb-8 border border-white/5">
-              <img src={wine.image} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80"></div>
-              <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
-                <div>
-                  <p className="text-[10px] tracking-widest uppercase text-[#c5a059] mb-2">{wine.country} / {wine.vintage}</p>
-                  <h2 className="text-3xl text-white font-light">{wine.name_jp}</h2>
+          <div key={wine.id} className="space-y-12">
+            <div className="relative aspect-[3/4] rounded-sm overflow-hidden shadow-2xl border border-white/5 bg-[#1a1c23]">
+              <img src={wine.image} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent"></div>
+              <div className="absolute bottom-10 left-10 right-10 flex justify-between items-end">
+                <div className="pr-4">
+                  <p className="text-[10px] tracking-[0.4em] font-sans font-black uppercase text-[#c5a059] opacity-80">{wine.country} / {wine.vintage}</p>
+                  <h2 className="text-4xl text-white font-light leading-tight">{wine.name_jp}</h2>
                 </div>
-                <p className="text-2xl text-white font-sans font-bold italic">¥{Number(wine.price).toLocaleString()}</p>
+                <p className="text-3xl font-sans text-white font-bold tracking-tighter">¥{Number(wine.price).toLocaleString()}</p>
               </div>
             </div>
-            <p className="text-slate-300 leading-relaxed italic font-light text-lg px-2">"{wine.advice}"</p>
+            <div className="space-y-8 px-2">
+              <div className="flex flex-wrap gap-4 text-[11px] font-sans font-black uppercase tracking-[0.2em] opacity-40">
+                <span className="bg-white/10 px-3 py-1 rounded-full">{wine.type}</span>
+                <span>{wine.region}</span>
+                <span>{wine.grape}</span>
+              </div>
+              <p className="text-xl text-slate-200 leading-relaxed italic font-light border-l-2 border-[#c5a059]/40 pl-8">
+                "{wine.advice}"
+              </p>
+              {wine.pairing && <p className="text-xs font-sans font-black uppercase tracking-widest text-[#c5a059] opacity-60">Matching: {wine.pairing}</p>}
+            </div>
           </div>
         ))}
       </div>
 
-      {/* AI Sommelier Floating Button */}
-      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce hover:scale-110 transition-transform z-50">
+      {/* Floating UI for Sommelier Chat - Same as before */}
+      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50">
         <MessageCircle size={32}/>
       </button>
 
       {chatOpen && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex flex-col p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[60] flex flex-col p-6 animate-in fade-in duration-300">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-light tracking-widest text-white uppercase flex items-center gap-3">
               <Sparkles className="text-[#c5a059]"/> AI Sommelier
             </h2>
             <button onClick={() => setChatOpen(false)} className="text-white opacity-50"><X size={32}/></button>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-6 mb-6 px-2 scrollbar-hide">
+          <div className="flex-1 overflow-y-auto space-y-6 mb-6 px-2">
             {history.map((h: any, i) => (
               <div key={i} className={`flex ${h.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-4 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold' : 'bg-white/5 text-slate-200 leading-relaxed'}`}>
+                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold' : 'bg-white/5 text-slate-100 leading-relaxed'}`}>
                   {h.content}
                 </div>
               </div>
@@ -84,7 +98,7 @@ export default function StoreMenu() {
             {isTyping && <Loader2 className="animate-spin text-[#c5a059] mx-auto" />}
           </div>
           <div className="relative">
-            <input type="text" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="どんなワインをお探しですか？" className="w-full bg-white/10 border border-[#c5a059]/30 rounded-full py-5 px-8 text-white outline-none focus:border-[#c5a059] transition-all" />
+            <input type="text" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="今の気分や料理を教えてください" className="w-full bg-white/10 border border-[#c5a059]/30 rounded-full py-5 px-8 text-white outline-none" />
             <button onClick={handleChat} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c5a059]"><Send size={24}/></button>
           </div>
         </div>

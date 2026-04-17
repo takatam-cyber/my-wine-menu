@@ -28,16 +28,14 @@ export async function POST(req: Request) {
     }
 
     let resultText = "";
-
     if (CUSTOM_KEY) {
-      // Gemini 1.5 Flash モード (最高精度)
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CUSTOM_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
             parts: [
-              { text: "ワインラベルを分析し日本語のJSONで返してください。白/泡なら渋み(tannin)を0にしフルーティ(aroma)を高くしてください。{name_jp, name_en, country, region, grape, color, type, vintage, price, advice, aroma, pairing, sweetness, body, acidity, tannin}" },
+              { text: "ワインラベルを分析し日本語のJSONで返してください。白/泡なら渋み(tannin)を0にしフルーティ(aroma)を高くしてください。{name_jp, name_en, country, region, grape, color, type, vintage, price, cost, advice, aroma, pairing, sweetness, body, acidity, tannin}" },
               { inline_data: { mime_type: "image/jpeg", data: btoa(String.fromCharCode(...new Uint8Array(imageBuffer))) } }
             ]
           }],
@@ -47,9 +45,8 @@ export async function POST(req: Request) {
       const data = await geminiRes.json();
       resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } else {
-      // Llama 3.2 Vision モード (無料)
       const llamaRes: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-        prompt: "Analyze this wine label. Output ONLY a raw JSON in Japanese: {name_jp, name_en, country, region, grape, color, type, vintage, price, advice, aroma, pairing, sweetness, body, acidity, tannin}",
+        prompt: "Analyze this wine label. Output ONLY a raw JSON in Japanese: {name_jp, name_en, country, region, grape, color, type, vintage, price, cost, advice, aroma, pairing, sweetness, body, acidity, tannin}",
         image: [...new Uint8Array(imageBuffer)],
       });
       resultText = llamaRes.response || llamaRes.description || JSON.stringify(llamaRes);
@@ -58,7 +55,6 @@ export async function POST(req: Request) {
     const firstBrace = resultText.indexOf('{');
     const lastBrace = resultText.lastIndexOf('}');
     const cleanJson = resultText.substring(firstBrace, lastBrace + 1);
-
     return NextResponse.json({ result: cleanJson });
   } catch (e: any) {
     return NextResponse.json({ error: "解析失敗: " + e.message }, { status: 500 });

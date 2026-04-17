@@ -3,13 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  Camera, Loader2, Wine as WineIcon, Edit3, LogOut, Save, Mail, Lock, Trash2, Settings, Globe, ChevronRight, FileUp, FileDown, Search
+  Camera, Loader2, Wine as WineIcon, Edit3, LogOut, Save, Mail, Lock, Trash2, Settings, ChevronRight, Download, Upload
 } from 'lucide-react';
 
 export default function AdminPage() {
   const [auth, setAuth] = useState({ email: '', pass: '' });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [config, setConfig] = useState({ menu_name: '' }); // slugを削除
+  const [config, setConfig] = useState({ menu_name: '' });
   const [wines, setWines] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -41,38 +41,42 @@ export default function AdminPage() {
     setWines(Array.isArray(data) ? data : []);
   };
 
+  // CSV出力（全項目対応）
   const exportCSV = () => {
-    const headers = "id,name_jp,name_en,color,type,price,stock,country,region,grape,vintage,advice,pairing,sweetness,body,acidity,tannin,aroma,image\n";
+    const headers = "id,name_jp,name_en,country,region,grape,color,type,vintage,price,cost,stock,advice,pairing,sweetness,body,acidity,tannin,aroma,image\n";
     const csvContent = wines.map((w: any) => 
-      `${w.id},"${w.name_jp}","${w.name_en}",${w.color},${w.type},${w.price},${w.stock},"${w.country}","${w.region}","${w.grape}",${w.vintage},"${w.advice}","${w.pairing}",${w.sweetness},${w.body},${w.acidity},${w.tannin},${w.aroma},"${w.image}"`
+      `"${w.id}","${w.name_jp}","${w.name_en}","${w.country}","${w.region}","${w.grape}","${w.color}","${w.type}","${w.vintage}","${w.price}","${w.cost}","${w.stock}","${(w.advice||'').replace(/"/g,'""')}","${w.pairing}","${w.sweetness}","${w.body}","${w.acidity}","${w.tannin}","${w.aroma}","${w.image}"`
     ).join("\n");
     const blob = new Blob(["\uFEFF" + headers + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `wine_list_${currentStoreId}.csv`);
+    link.download = `wine_list_${currentStoreId}.csv`;
     link.click();
   };
 
-  const handleCSVImport = async (e: any) => {
+  // CSV入力（全項目対応）
+  const importCSV = (e: any) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = async (event: any) => {
+    reader.onload = async (event) => {
       try {
-        const text = event.target.result as string;
-        const rows = text.split('\n').slice(1);
-        const importedWines = rows.filter(row => row.trim()).map(row => {
-          const c = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').replace(/""/g, '"'));
+        const text = event.target?.result as string;
+        const lines = text.split("\n").filter(l => l.trim()).slice(1);
+        const imported = lines.map(line => {
+          const c = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').replace(/""/g, '"'));
           return {
-            id: c[0] || Date.now().toString() + Math.random(), name_jp: c[1], name_en: c[2], color: c[3], type: c[4], price: c[5], stock: c[6], country: c[7], region: c[8], grape: c[9], vintage: c[10], advice: c[11], pairing: c[12], sweetness: c[13] || '3', body: c[14] || '3', acidity: c[15] || '3', tannin: c[16] || '3', aroma: c[17] || '3', image: c[18]
+            id: c[0] || Date.now().toString(), name_jp: c[1], name_en: c[2], country: c[3], region: c[4],
+            grape: c[5], color: c[6], type: c[7], vintage: c[8], price: c[9], cost: c[10], stock: c[11],
+            advice: c[12], pairing: c[13], sweetness: c[14], body: c[15], acidity: c[16], tannin: c[17], aroma: c[18], image: c[19]
           };
         });
-        if (confirm(`${importedWines.length}件を読み込みますか？`)) {
+        if (confirm(`${imported.length}件を一括登録・更新しますか？`)) {
           setLoading(true);
-          await fetch('/api/wines/bulk', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(importedWines) });
+          await fetch('/api/wines/bulk', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(imported) });
           fetchWines();
         }
-      } catch (err) { alert("CSVエラー"); } finally { setLoading(false); }
+      } catch (err) { alert("CSVの形式が正しくありません"); } finally { setLoading(false); }
     };
     reader.readAsText(file);
   };
@@ -89,7 +93,7 @@ export default function AdminPage() {
       const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ image: url }) });
       const scanData = await scanRes.json();
       setNewWine({ ...newWine, ...JSON.parse(scanData.result), image: url });
-    } catch (err: any) { alert("解析失敗"); } finally { setLoading(false); }
+    } catch (err: any) { alert("解析失敗。"); } finally { setLoading(false); }
   };
 
   const handleSaveWine = async () => {
@@ -101,11 +105,11 @@ export default function AdminPage() {
   if (!isLoggedIn) return (
     <div className="min-h-screen flex items-center justify-center bg-[#0d0e12] p-6 text-black">
       <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-sm shadow-2xl">
-        <h1 className="text-3xl font-black mb-8 text-center tracking-tighter">Login</h1>
+        <h1 className="text-3xl font-black mb-8 text-center">Login</h1>
         <form onSubmit={(e:any) => { e.preventDefault(); setIsLoggedIn(true); localStorage.setItem('wine_store_email', auth.email); }} className="space-y-4">
-          <input type="email" placeholder="メールアドレス" value={auth.email} onChange={e => setAuth({...auth, email: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none" required />
-          <input type="password" placeholder="パスワード" value={auth.pass} onChange={e => setAuth({...auth, pass: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-bold outline-none" required />
-          <button className="w-full bg-black text-white py-5 rounded-2xl font-black shadow-xl">ログイン</button>
+          <input type="email" placeholder="メールアドレス" value={auth.email} onChange={e => setAuth({...auth, email: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-bold border-none outline-none" required />
+          <input type="password" placeholder="パスワード" value={auth.pass} onChange={e => setAuth({...auth, pass: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-bold border-none outline-none" required />
+          <button className="w-full bg-black text-white py-5 rounded-2xl font-black shadow-xl active:scale-95 transition-all">ログイン</button>
         </form>
       </div>
     </div>
@@ -113,45 +117,59 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 bg-slate-50 min-h-screen text-black pb-24 font-sans">
-      <div className="flex justify-between items-center mb-8 px-2">
-        <h1 className="text-lg font-black truncate">{auth.email}</h1>
-        <button onClick={() => {localStorage.clear(); location.reload();}} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-400"><LogOut size={20}/></button>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-lg font-black truncate max-w-[200px]">{auth.email}</h1>
+        <button onClick={() => {localStorage.clear(); location.reload();}} className="p-3 bg-white border border-slate-100 rounded-2xl text-slate-400 active:text-red-500 transition-colors"><LogOut size={20}/></button>
       </div>
 
+      {/* CSVツールバー */}
       <div className="flex gap-2 mb-8">
-        <button onClick={exportCSV} className="flex-1 bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm shadow-sm active:bg-slate-50 transition-all"><FileDown size={18}/> CSV出力</button>
-        <label className="flex-1 bg-white border border-slate-200 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm shadow-sm cursor-pointer active:bg-slate-50 transition-all">
-          <FileUp size={18}/> CSV読込<input type="file" accept=".csv" onChange={handleCSVImport} className="hidden" />
+        <button onClick={exportCSV} className="flex-1 bg-white border-2 border-slate-200 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm shadow-sm active:bg-slate-50 transition-all"><Download size={18}/> CSV出力</button>
+        <label className="flex-1 bg-white border-2 border-slate-200 p-4 rounded-2xl flex items-center justify-center gap-2 font-bold text-sm shadow-sm cursor-pointer active:bg-slate-50 transition-all">
+          <Upload size={18}/> CSV取込<input type="file" accept=".csv" onChange={importCSV} className="hidden" />
         </label>
       </div>
 
+      {/* 店舗設定 */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-xl mb-8 border border-slate-100 space-y-4">
-        <div className="flex items-center gap-2 mb-2 text-slate-400 font-black text-[10px] uppercase tracking-widest"><Settings size={14}/> Store Name Settings</div>
-        <input type="text" value={config.menu_name} onChange={e => setConfig({...config, menu_name: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl border-2 font-bold focus:border-amber-500 outline-none" placeholder="店舗名を入力" />
+        <div className="flex items-center gap-2 mb-2 text-slate-400 font-black text-[10px] uppercase tracking-widest"><Settings size={14}/> Menu Settings</div>
+        <input type="text" value={config.menu_name} onChange={e => setConfig({...config, menu_name: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl border-2 font-bold focus:border-amber-500 outline-none" placeholder="メニュー名（例: Bistro Wine）" />
         <button onClick={async () => { await fetch('/api/config', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(config) }); alert("保存完了"); }} className="w-full bg-amber-500 text-white py-4 rounded-2xl font-black shadow-lg">店舗名を保存</button>
       </div>
 
+      {/* ワイン入力（全19項目フルセット） */}
       <div className="bg-white p-8 rounded-[3rem] shadow-2xl border border-slate-100 mb-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* captureを削除し、スマホで写真ライブラリ・カメラ両方選択可能に */}
-          <label className="aspect-[3/4] bg-slate-50 rounded-3xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer border-4 border-dashed border-slate-100 group">
+          <label className="aspect-[3/4] bg-slate-100 rounded-3xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer border-4 border-dashed border-slate-100 hover:border-amber-200 transition-all">
             {newWine.image ? <img src={newWine.image} className="w-full h-full object-cover" /> : <div className="text-center"><Camera size={48} className="mx-auto text-slate-200 mb-2"/><p className="text-[10px] font-black text-slate-300 uppercase">Scan Label</p></div>}
             {loading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><Loader2 className="text-white animate-spin" size={48} /></div>}
+            {/* captureを削除し、スマホでライブラリ選択を可能に */}
             <input type="file" accept="image/*" onChange={handleScan} className="hidden" />
           </label>
           <div className="space-y-3">
             <select value={newWine.color} onChange={e => setNewWine({...newWine, color: e.target.value})} className="w-full p-4 bg-slate-100 rounded-2xl font-black">
-              <option value="赤">Red</option><option value="白">White</option><option value="ロゼ">Rosé</option><option value="泡">Sparkling</option>
+              <option value="赤">Red Wine</option><option value="白">White Wine</option><option value="ロゼ">Rosé Wine</option><option value="泡">Sparkling</option>
             </select>
-            <input type="text" placeholder="名前 (日)" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border-2" />
+            <input type="text" placeholder="名前 (日本語)" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border-2" />
+            <input type="text" placeholder="English Name" value={newWine.name_en} onChange={e => setNewWine({...newWine, name_en: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border-2" />
             <div className="grid grid-cols-2 gap-2">
-              <input type="number" placeholder="売価" value={newWine.price} onChange={e => setNewWine({...newWine, price: e.target.value})} className="p-3 bg-amber-50 rounded-xl font-bold" />
+              <input type="text" placeholder="国" value={newWine.country} onChange={e => setNewWine({...newWine, country: e.target.value})} className="p-3 bg-slate-50 rounded-xl border-2" />
+              <input type="text" placeholder="産地" value={newWine.region} onChange={e => setNewWine({...newWine, region: e.target.value})} className="p-3 bg-slate-50 rounded-xl border-2" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" placeholder="品種" value={newWine.grape} onChange={e => setNewWine({...newWine, grape: e.target.value})} className="p-3 bg-slate-50 rounded-xl border-2" />
+              <input type="text" placeholder="年 (Vintage)" value={newWine.vintage} onChange={e => setNewWine({...newWine, vintage: e.target.value})} className="p-3 bg-slate-50 rounded-xl border-2" />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <input type="number" placeholder="売価 ¥" value={newWine.price} onChange={e => setNewWine({...newWine, price: e.target.value})} className="p-3 bg-amber-50 rounded-xl font-bold" />
+              <input type="number" placeholder="仕入 ¥" value={newWine.cost} onChange={e => setNewWine({...newWine, cost: e.target.value})} className="p-3 bg-slate-100 rounded-xl font-bold" />
               <input type="number" placeholder="在庫" value={newWine.stock} onChange={e => setNewWine({...newWine, stock: e.target.value})} className="p-3 bg-green-50 rounded-xl font-bold" />
             </div>
-            <textarea placeholder="ソムリエ解説" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold h-32 border-2 resize-none" />
+            <input type="text" placeholder="タイプ (例: フルボディ)" value={newWine.type} onChange={e => setNewWine({...newWine, type: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl border-2" />
           </div>
         </div>
 
+        {/* 味わいチャート */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 border-y border-slate-50">
           <FlavorField label="甘味" val={newWine.sweetness} set={(v:any) => setNewWine({...newWine, sweetness: v})} />
           <FlavorField label="ボディ" val={newWine.body} set={(v:any) => setNewWine({...newWine, body: v})} />
@@ -163,14 +181,17 @@ export default function AdminPage() {
           )}
         </div>
 
-        <button onClick={handleSaveWine} className="w-full bg-black text-white py-6 rounded-3xl font-black text-xl shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all">
-          <Save size={24}/> {editingId ? 'Update Wine' : 'Add to Collection'}
+        <input type="text" placeholder="ペアリング料理 (例: ステーキ、魚料理など)" value={newWine.pairing} onChange={e => setNewWine({...newWine, pairing: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl border-2" />
+        <textarea placeholder="ソムリエのオススメ解説" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold h-32 border-2 resize-none" />
+        <button onClick={handleSaveWine} className="w-full bg-black text-white py-6 rounded-3xl font-black text-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
+          <Save size={24}/> {editingId ? 'ワインを更新' : '台帳に登録する'}
         </button>
       </div>
 
+      {/* ワインリスト表示 */}
       <div className="grid grid-cols-1 gap-4">
         {wines.map((wine: any) => (
-          <div key={wine.id} className="bg-white p-5 rounded-[2.5rem] flex items-center gap-6 shadow-sm border border-slate-100 group">
+          <div key={wine.id} className="bg-white p-5 rounded-[2.5rem] flex items-center gap-6 shadow-sm border border-slate-100 hover:shadow-md transition-all group">
             <img src={wine.image} className="w-20 h-24 rounded-2xl object-cover shadow-sm bg-slate-50" />
             <div className="flex-1 min-w-0">
               <p className="font-black text-lg truncate text-black leading-tight mb-1">{wine.name_jp}</p>
@@ -178,12 +199,13 @@ export default function AdminPage() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => {setNewWine(wine); setEditingId(wine.id); window.scrollTo({top: 450, behavior:'smooth'});}} className="p-4 bg-slate-50 rounded-2xl text-slate-300 hover:text-black transition-all"><Edit3 size={20}/></button>
-              <button onClick={async () => { if(confirm("削除しますか？")) { await fetch('/api/wines', { method: 'DELETE', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ id: wine.id }) }); fetchWines(); } }} className="p-4 bg-red-50 rounded-2xl text-red-200 hover:text-red-500 transition-all"><Trash2 size={20}/></button>
+              <button onClick={async () => { if(confirm("このワインを削除しますか？")) { await fetch('/api/wines', { method: 'DELETE', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ id: wine.id }) }); fetchWines(); } }} className="p-4 bg-red-50 rounded-2xl text-red-200 hover:text-red-500 transition-all"><Trash2 size={20}/></button>
             </div>
           </div>
         ))}
       </div>
 
+      {/* 公開URL案内 */}
       <div className="mt-16 p-10 bg-slate-900 text-white rounded-[3.5rem] shadow-2xl relative overflow-hidden group">
         <p className="text-[10px] font-black opacity-30 uppercase tracking-[0.4em] mb-4">Wine Menu Public URL</p>
         <p className="text-lg font-mono font-bold text-[#c5a059] italic mb-8">/{currentStoreId}</p>
@@ -199,7 +221,7 @@ function FlavorField({ label, val, set }: any) {
   return (
     <div className="space-y-1 text-center group">
       <label className="text-[10px] font-black text-slate-400 uppercase tracking-tighter group-hover:text-amber-500 transition-colors">{label}</label>
-      <input type="number" min="1" max="5" value={val} onChange={e => set(e.target.value)} className="w-full p-2 bg-slate-100 rounded-xl font-black text-center border-2 border-transparent focus:border-amber-500 outline-none" />
+      <input type="number" min="1" max="5" value={val} onChange={e => set(e.target.value)} className="w-full p-2 bg-slate-100 rounded-xl font-black text-center border-2 border-transparent focus:border-amber-500 outline-none transition-all shadow-inner" />
     </div>
   );
 }

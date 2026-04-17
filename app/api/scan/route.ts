@@ -7,40 +7,43 @@ export async function POST(req: Request) {
   try {
     const { image } = await req.json();
     const env = getRequestContext().env;
-    const API_KEY = env.GEMINI_API_KEY;
 
-    if (!API_KEY) return NextResponse.json({ error: "APIキーが設定されていません。" }, { status: 500 });
+    // Workers AIが有効かチェック
+    if (!env.AI) {
+      return NextResponse.json({ error: "Cloudflare AI bindingが設定されていません。" }, { status: 500 });
+    }
 
-    let base64Data = image.startsWith('http') 
-      ? btoa(String.fromCharCode(...new Uint8Array(await (await fetch(image)).arrayBuffer())))
-      : image.replace(/^data:image\/\w+;base64,/, "");
+    // 1. 画像データのバイナリ化（ArrayBufferへの変換）
+    let imageBuffer: ArrayBuffer;
+    if (image.startsWith('http')) {
+      const imgRes = await fetch(image);
+      imageBuffer = await imgRes.arrayBuffer();
+    } else {
+      const base64String = image.replace(/^data:image\/\w+;base64,/, "");
+      const binaryString = atob(base64String);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      imageBuffer = bytes.buffer;
+    }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: "ワインラベルを分析し、以下の項目を日本語のJSON形式で返してください。{name_jp, name_en, country, region, grape, type, vintage, price, advice}" },
-            { inline_data: { mime_type: "image/jpeg", data: base64Data } }
-          ]
-        }],
-        generationConfig: { responseMimeType: "application/json" }
-      })
+    // 2. Llama 3.2 Vision を実行
+    // CloudflareネイティブのAI実行環境を使用します
+    const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
+      prompt: "Analyze this wine label image and extract information. Return ONLY a valid JSON object in Japanese with these keys: name_jp, name_en, country, region, grape, type, vintage, price, advice",
+      image: [...new Uint8Array(imageBuffer)],
     });
 
-    const data = await response.json();
+    // 解析結果のテキストを抽出
+    const resultText = aiResponse.description || aiResponse.response || JSON.stringify(aiResponse);
+    
+    // Markdown装飾が含まれる場合のクリーンアップ処理
+    const cleanJson = resultText.replace(/```json|```/g, '').trim();
 
-    // 安全策：データが存在するかチェック
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
-    if (!resultText) {
-      // 安全フィルターなどで解析できなかった場合
-      throw new Error("AIが画像を読み取れませんでした。別の角度で試してください。");
-    }
-    
-    return NextResponse.json({ result: resultText });
+    return NextResponse.json({ result: cleanJson });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("Llama Scan Error:", e.message);
+    return NextResponse.json({ error: "AI解析失敗: " + e.message }, { status: 500 });
   }
 }

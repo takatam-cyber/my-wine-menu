@@ -24,7 +24,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // ワイン情報の初期状態
   const initialWineState = {
     id: '', name_jp: '', name_en: '', country: '', region: '', 
     grape: '', type: '赤 / フルボディ', vintage: '', price: '', cost: '', 
@@ -33,7 +32,6 @@ export default function AdminPage() {
 
   const [newWine, setNewWine] = useState(initialWineState);
 
-  // 1. ログイン情報の復元
   useEffect(() => {
     const savedId = localStorage.getItem('wine_store_id');
     const savedPass = localStorage.getItem('wine_store_pass');
@@ -43,12 +41,10 @@ export default function AdminPage() {
     }
   }, []);
 
-  // 2. ログイン完了後にデータ取得
   useEffect(() => { 
     if (isLoggedIn) fetchWines(); 
   }, [isLoggedIn]);
 
-  // データ取得ロジック
   const fetchWines = async () => {
     try {
       const res = await fetch(`/api/wines`, { 
@@ -63,7 +59,6 @@ export default function AdminPage() {
     }
   };
 
-  // ログイン処理
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (auth.id.length < 3 || auth.pass.length < 4) {
@@ -74,7 +69,6 @@ export default function AdminPage() {
     setIsLoggedIn(true);
   };
 
-  // ログアウト
   const handleLogout = () => {
     if (confirm("ログアウトしますか？")) {
       localStorage.clear();
@@ -82,7 +76,6 @@ export default function AdminPage() {
     }
   };
 
-  // 在庫クイック更新
   const updateStock = async (wine: any, delta: number) => {
     const updated = { ...wine, stock: String(Math.max(0, (parseInt(wine.stock) || 0) + delta)) };
     const res = await fetch('/api/wines', { 
@@ -93,14 +86,12 @@ export default function AdminPage() {
     if (res.ok) fetchWines();
   };
 
-  // ★ AIラベル分析
   const handleScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
 
     try {
-      // 1. 画像アップロード
       const formData = new FormData();
       formData.append('file', file);
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -111,7 +102,6 @@ export default function AdminPage() {
       const imageUrl = uploadData.url;
       setNewWine(prev => ({ ...prev, image: imageUrl }));
 
-      // 2. Gemini AI で解析
       const scanRes = await fetch('/api/scan', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +134,6 @@ export default function AdminPage() {
     }
   };
 
-  // 保存処理
   const handleSave = async () => {
     if (!newWine.name_jp) return alert("ワイン名は必須です");
     setLoading(true);
@@ -167,7 +156,6 @@ export default function AdminPage() {
     }
   };
 
-  // CSV出力
   const exportCSV = () => {
     const headers = "カタカナ名,アルファベット,国,産地,品種,タイプ,年,販売価格,在庫,オススメ解説\n";
     const rows = wines.map((w: any) => 
@@ -198,7 +186,7 @@ export default function AdminPage() {
   return (
     <div className="max-w-md mx-auto p-4 bg-slate-50 min-h-screen text-black pb-24 font-sans">
       <div className="flex justify-between items-center py-6">
-        <h1 className="text-2xl font-black">Store #{auth.id}</h1>
+        <h1 className="text-2xl font-black text-black">Store #{auth.id}</h1>
         <button onClick={handleLogout} className="p-3 bg-white border rounded-2xl text-slate-400"><LogOut size={20}/></button>
       </div>
 
@@ -217,18 +205,18 @@ export default function AdminPage() {
         </div>
 
         <div className="space-y-4">
-          <input type="text" placeholder="ワイン名（カタカナ）" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100" />
-          <input type="text" placeholder="English Name" value={newWine.name_en} onChange={e => setNewWine({...newWine, name_en: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100" />
+          <input type="text" placeholder="ワイン名（カタカナ）" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100 text-black" />
+          <input type="text" placeholder="English Name" value={newWine.name_en} onChange={e => setNewWine({...newWine, name_en: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100 text-black" />
           <div className="grid grid-cols-2 gap-3">
-            <input type="text" placeholder="国" value={newWine.country} onChange={e => setNewWine({...newWine, country: e.target.value})} className="p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100" />
-            <input type="text" placeholder="産地" value={newWine.region} onChange={e => setNewWine({...newWine, region: e.target.value})} className="p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100" />
+            <input type="text" placeholder="国" value={newWine.country} onChange={e => setNewWine({...newWine, country: e.target.value})} className="p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100 text-black" />
+            <input type="text" placeholder="産地" value={newWine.region} onChange={e => setNewWine({...newWine, region: e.target.value})} className="p-4 bg-slate-50 rounded-xl font-bold border-2 border-slate-100 text-black" />
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <input type="number" placeholder="売価" value={newWine.price} onChange={e => setNewWine({...newWine, price: e.target.value})} className="p-3 bg-amber-50 rounded-xl font-bold border-2 border-amber-100" />
-            <input type="number" placeholder="仕入" value={newWine.cost} onChange={e => setNewWine({...newWine, cost: e.target.value})} className="p-3 bg-slate-50 rounded-xl font-bold border-2 border-slate-100" />
-            <input type="number" placeholder="在庫" value={newWine.stock} onChange={e => setNewWine({...newWine, stock: e.target.value})} className="p-3 bg-green-50 rounded-xl font-bold border-2 border-green-100" />
+            <input type="number" placeholder="売価" value={newWine.price} onChange={e => setNewWine({...newWine, price: e.target.value})} className="p-3 bg-amber-50 rounded-xl font-bold border-2 border-amber-100 text-black" />
+            <input type="number" placeholder="仕入" value={newWine.cost} onChange={e => setNewWine({...newWine, cost: e.target.value})} className="p-3 bg-slate-50 rounded-xl font-bold border-2 border-slate-100 text-black" />
+            <input type="number" placeholder="在庫" value={newWine.stock} onChange={e => setNewWine({...newWine, stock: e.target.value})} className="p-3 bg-green-50 rounded-xl font-bold border-2 border-green-100 text-black" />
           </div>
-          <textarea placeholder="オススメ解説" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold h-24 border-2 border-slate-100" />
+          <textarea placeholder="オススメ解説" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-xl font-bold h-24 border-2 border-slate-100 text-black" />
         </div>
 
         <button onClick={handleSave} disabled={loading} className="w-full bg-black text-white py-6 rounded-3xl font-black text-xl shadow-2xl flex items-center justify-center gap-2">
@@ -236,23 +224,19 @@ export default function AdminPage() {
         </button>
       </div>
 
-      <div className="flex gap-2 mb-12">
-        <button onClick={exportCSV} className="flex-1 bg-white border border-slate-200 py-4 rounded-xl font-bold text-xs shadow-sm flex items-center justify-center gap-2"><Download size={16}/> CSV保存</button>
-      </div>
-
       <div className="space-y-3">
         {wines.map((wine: any) => (
           <div key={wine.id} className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-sm border border-slate-100">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-50">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-50 flex-shrink-0">
               {wine.image ? <img src={wine.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-200"><WineIcon size={24}/></div>}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-black text-sm truncate">{wine.name_jp}</p>
+              <p className="font-black text-sm truncate text-black">{wine.name_jp}</p>
               <p className="text-[10px] font-bold text-amber-600">¥{Number(wine.price).toLocaleString()}</p>
             </div>
-            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-100 shadow-inner">
+            <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-2xl border border-slate-100">
               <button onClick={() => updateStock(wine, -1)} className="p-1.5 text-slate-400"><Minus size={18}/></button>
-              <span className="font-black text-lg w-7 text-center">{wine.stock}</span>
+              <span className="font-black text-lg w-7 text-center text-black">{wine.stock}</span>
               <button onClick={() => updateStock(wine, 1)} className="p-1.5 text-slate-400"><Plus size={18}/></button>
             </div>
             <button onClick={() => {setNewWine(wine); setEditingId(wine.id); window.scrollTo({top: 0, behavior: 'smooth'});}} className="p-2.5 text-slate-300"><Edit3 size={20}/></button>

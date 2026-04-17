@@ -27,12 +27,12 @@ export default function StoreMenu() {
     }
   }, [storeId]);
 
-  // 在庫があり、かつフィルタに合致するワインのみ抽出
+  // 在庫があり、フィルタに合致するワインのみ抽出
   const filteredWines = useMemo(() => {
     return wines.filter((w: any) => {
       const matchColor = filterColor === 'ALL' || w.color === filterColor;
       const matchPrice = Number(w.price) <= maxPrice;
-      const inStock = !w.stock || parseInt(w.stock) > 0;
+      const inStock = !w.stock || parseInt(w.stock) > 0; // 在庫0以外は表示
       return matchColor && matchPrice && inStock;
     });
   }, [wines, filterColor, maxPrice]);
@@ -40,7 +40,6 @@ export default function StoreMenu() {
   const handleChat = async (directMsg?: string) => {
     const msgToSend = directMsg || message;
     if (!msgToSend) return;
-    
     setHistory(prev => [...prev, { role: 'user', content: msgToSend }]);
     setMessage("");
     setIsTyping(true);
@@ -54,9 +53,7 @@ export default function StoreMenu() {
       setHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
     } catch (e) {
       setHistory(prev => [...prev, { role: 'assistant', content: "ソムリエはただいま席を外しております。" }]);
-    } finally {
-      setIsTyping(false);
-    }
+    } finally { setIsTyping(false); }
   };
 
   return (
@@ -67,7 +64,7 @@ export default function StoreMenu() {
         <p className="text-[10px] tracking-[0.5em] mt-8 opacity-40 uppercase font-sans font-black tracking-widest">Sommelier Selection</p>
       </header>
 
-      {/* 検索・フィルタセクション（スティッキー表示） */}
+      {/* スティッキー・フィルタバー */}
       <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-md py-6 px-6 border-b border-white/5 space-y-4 shadow-xl">
         <div className="max-w-xl mx-auto flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {['ALL', '赤', '白', '泡'].map(c => (
@@ -84,7 +81,7 @@ export default function StoreMenu() {
 
       <div className="max-w-xl mx-auto px-6 space-y-24 mt-16">
         {filteredWines.length === 0 ? (
-          <div className="text-center py-20 opacity-30 font-sans text-sm tracking-widest uppercase">No matching wines found.</div>
+          <div className="text-center py-20 opacity-30 font-sans text-sm tracking-widest uppercase">No wines found.</div>
         ) : (
           filteredWines.map((wine: any) => (
             <div key={wine.id} className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -114,7 +111,7 @@ export default function StoreMenu() {
         )}
       </div>
 
-      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 hover:scale-110 active:scale-95 transition-all">
+      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 transition-all hover:scale-110 active:scale-95 shadow-amber-500/20">
         <MessageCircle size={32}/>
       </button>
 
@@ -124,26 +121,23 @@ export default function StoreMenu() {
             <h2 className="text-2xl font-light tracking-widest text-white uppercase flex items-center gap-3"><Sparkles className="text-[#c5a059]"/> AI Sommelier</h2>
             <button onClick={() => setChatOpen(false)} className="text-white opacity-50 active:scale-90"><X size={32}/></button>
           </div>
-          
           <div className="flex-1 overflow-y-auto space-y-6 mb-6 px-2 scroll-smooth">
             {history.length === 0 && (
               <div className="space-y-4 pt-10">
-                <p className="text-center text-[10px] font-black uppercase tracking-widest opacity-40 mb-6">Ask your Sommelier</p>
-                {['気分に合う赤ワインは？', 'お肉料理に合う一本を教えて', '1万円以下でおすすめは？'].map(q => (
+                {['気分に合う赤ワインは？', 'お肉料理に合う重めなのは？', '1万円以下でおすすめは？'].map(q => (
                   <button key={q} onClick={() => handleChat(q)} className="w-full text-left p-5 bg-white/5 rounded-2xl text-slate-200 border border-white/10 active:border-[#c5a059] transition-all font-sans text-sm">{q}</button>
                 ))}
               </div>
             )}
             {history.map((h: any, i) => (
               <div key={i} className={`flex ${h.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold font-sans text-sm shadow-lg' : 'bg-white/5 text-slate-100 leading-relaxed font-serif'}`}>
+                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold font-sans text-sm' : 'bg-white/5 text-slate-100 leading-relaxed font-serif'}`}>
                   {h.content}
                 </div>
               </div>
             ))}
             {isTyping && <Loader2 className="animate-spin text-[#c5a059] mx-auto mt-4" />}
           </div>
-
           <div className="relative">
             <input type="text" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="どんなワインをお探しですか？" className="w-full bg-white/10 border border-[#c5a059]/30 rounded-full py-5 px-8 text-white outline-none focus:border-[#c5a059] transition-all font-sans" />
             <button onClick={() => handleChat()} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c5a059]"><Send size={24}/></button>

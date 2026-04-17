@@ -16,9 +16,11 @@ export default function StoreMenu() {
   const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
-    // 1. まず全ての設定から該当するスラッグを持つ店舗を探す（簡易版：今は storeId = email として処理）
-    fetch(`/api/wines?storeId=${storeId}`).then(res => res.json()).then(data => setWines(data));
-    fetch(`/api/config`, { headers: { 'x-store-id': storeId } }).then(res => res.json()).then(data => setConfig(data));
+    if (storeId) {
+      // データの取得（現在は storeId = 登録時のメールアドレスとして動作）
+      fetch(`/api/wines?storeId=${storeId}`).then(res => res.json()).then(data => setWines(Array.isArray(data) ? data : []));
+      fetch(`/api/config`, { headers: { 'x-store-id': storeId } }).then(res => res.json()).then(data => setConfig(data));
+    }
   }, [storeId]);
 
   const handleChat = async () => {
@@ -30,7 +32,12 @@ export default function StoreMenu() {
 
     const res = await fetch('/api/sommelier', {
       method: 'POST',
-      body: JSON.stringify({ message, history, wineList: wines })
+      body: JSON.stringify({ 
+        message, 
+        history, 
+        wineList: wines,
+        storeId: storeId // ここが重要：AIに店舗情報を渡す
+      })
     });
     const data = await res.json();
     setHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
@@ -42,7 +49,7 @@ export default function StoreMenu() {
       <header className="py-24 px-6 text-center border-b border-white/5">
         <h1 className="text-4xl font-light tracking-[0.4em] text-[#f8f8f8] uppercase mb-4">{config.menu_name || 'WINE MENU'}</h1>
         <div className="h-[1px] w-24 bg-[#c5a059] mx-auto opacity-30"></div>
-        <p className="text-[10px] tracking-[0.5em] mt-8 opacity-40 uppercase font-sans font-black">Sommelier Selection</p>
+        <p className="text-[10px] tracking-[0.5em] mt-8 opacity-40 uppercase font-sans font-black tracking-widest">Sommelier Selection</p>
       </header>
 
       <div className="max-w-xl mx-auto px-6 space-y-24 mt-16">
@@ -74,7 +81,6 @@ export default function StoreMenu() {
         ))}
       </div>
 
-      {/* Floating UI for Sommelier Chat - Same as before */}
       <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50">
         <MessageCircle size={32}/>
       </button>
@@ -82,9 +88,7 @@ export default function StoreMenu() {
       {chatOpen && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[60] flex flex-col p-6 animate-in fade-in duration-300">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-light tracking-widest text-white uppercase flex items-center gap-3">
-              <Sparkles className="text-[#c5a059]"/> AI Sommelier
-            </h2>
+            <h2 className="text-2xl font-light tracking-widest text-white uppercase flex items-center gap-3"><Sparkles className="text-[#c5a059]"/> AI Sommelier</h2>
             <button onClick={() => setChatOpen(false)} className="text-white opacity-50"><X size={32}/></button>
           </div>
           <div className="flex-1 overflow-y-auto space-y-6 mb-6 px-2">
@@ -95,10 +99,10 @@ export default function StoreMenu() {
                 </div>
               </div>
             ))}
-            {isTyping && <Loader2 className="animate-spin text-[#c5a059] mx-auto" />}
+            {isTyping && <Loader2 className="animate-spin text-[#c5a059] mx-auto mt-4" />}
           </div>
           <div className="relative">
-            <input type="text" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="今の気分や料理を教えてください" className="w-full bg-white/10 border border-[#c5a059]/30 rounded-full py-5 px-8 text-white outline-none" />
+            <input type="text" value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="今の気分や料理を教えてください" className="w-full bg-white/10 border border-[#c5a059]/30 rounded-full py-5 px-8 text-white outline-none focus:border-[#c5a059] transition-all" />
             <button onClick={handleChat} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#c5a059]"><Send size={24}/></button>
           </div>
         </div>

@@ -9,12 +9,10 @@ export async function POST(req: Request) {
     const storeId = req.headers.get('x-store-id');
     const env = getRequestContext().env;
     
-    // 1. KVから店舗設定を取得
     const configData = await env.WINE_KV.get(`config:${storeId}`);
     const config = configData ? JSON.parse(configData) : {};
     const CUSTOM_KEY = config.gemini_key;
 
-    // 2. 画像のバイナリ化
     let imageBuffer: ArrayBuffer;
     if (image.startsWith('http')) {
       const imgRes = await fetch(image);
@@ -32,7 +30,7 @@ export async function POST(req: Request) {
     let resultText = "";
 
     if (CUSTOM_KEY) {
-      // --- パターンA: 店舗独自のGeminiキーを使用 (最高精度) ---
+      // Gemini 1.5 Flash モード (最高精度)
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${CUSTOM_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +47,7 @@ export async function POST(req: Request) {
       const data = await geminiRes.json();
       resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
     } else {
-      // --- パターンB: キーがないのでLlama 3.2 Visionを使用 (完全無料) ---
+      // Llama 3.2 Vision モード (無料)
       const llamaRes: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
         prompt: "Analyze this wine label. Output ONLY a raw JSON in Japanese: {name_jp, name_en, country, region, grape, color, type, vintage, price, advice, aroma, pairing, sweetness, body, acidity, tannin}",
         image: [...new Uint8Array(imageBuffer)],
@@ -57,7 +55,6 @@ export async function POST(req: Request) {
       resultText = llamaRes.response || llamaRes.description || JSON.stringify(llamaRes);
     }
 
-    // JSON部分のみを抽出（Llamaのお喋り対策）
     const firstBrace = resultText.indexOf('{');
     const lastBrace = resultText.lastIndexOf('}');
     const cleanJson = resultText.substring(firstBrace, lastBrace + 1);

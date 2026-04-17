@@ -12,11 +12,11 @@ export async function POST(req: Request) {
 
     if (!API_KEY) {
       return NextResponse.json({ 
-        error: "Cloudflareの環境変数にGEMINI_API_KEYが設定されていません。Settings > Variablesを確認してください。" 
+        error: "APIキーが設定されていません。" 
       }, { status: 500 });
     }
 
-    // 画像データの準備（URLまたはBase64）
+    // 画像データの準備
     let base64Data = "";
     if (image.startsWith('http')) {
       const imgRes = await fetch(image);
@@ -33,20 +33,22 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         contents: [{
           parts: [
-            { text: "ワインラベルを分析し、以下の日本語のJSON形式のみを返してください。余計なテキストは一切含めないでください。項目: {name_jp, name_en, country, region, grape, type, vintage, price, advice}" },
+            { text: "ワインラベルを分析し、以下の日本語のJSON形式のみを返してください。項目: {name_jp, name_en, country, region, grape, type, vintage, price, advice}" },
             { inline_data: { mime_type: "image/jpeg", data: base64Data } }
           ]
         }],
         generationConfig: {
-          response_mime_type: "application/json"
+          // ここを修正：response_mime_type -> responseMimeType
+          responseMimeType: "application/json"
         }
       })
     });
 
     const data = await response.json();
-    if (!response.ok) throw new Error(JSON.stringify(data));
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API Error");
+    }
 
-    // 解析結果（JSON文字列）を取得
     const resultText = data.candidates[0].content.parts[0].text;
     
     return NextResponse.json({ result: resultText });

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  Camera, Loader2, Wine as WineIcon, Edit3, Download, Upload, LogOut, Save, Mail, Lock, Key
+  Camera, Loader2, Wine as WineIcon, Edit3, Download, Upload, LogOut, Save, Mail, Lock, Key, ExternalLink
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -33,20 +33,12 @@ export default function AdminPage() {
       fetch(`/api/config`, { headers: { 'x-store-id': auth.email } })
         .then(res => res.json()).then(data => setGeminiKey(data.gemini_key || ''));
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, auth.email]);
 
   const fetchWines = async () => {
     const res = await fetch(`/api/wines`, { headers: { 'x-store-id': auth.email } });
     const data = await res.json();
     setWines(Array.isArray(data) ? data : []);
-  };
-
-  const saveConfig = async () => {
-    await fetch('/api/config', { 
-      method: 'POST', headers: { 'x-store-id': auth.email }, 
-      body: JSON.stringify({ gemini_key: geminiKey }) 
-    });
-    alert("APIキー設定を保存しました。今後は店舗専用キーで解析されます。");
   };
 
   const handleScan = async (e: any) => {
@@ -58,19 +50,42 @@ export default function AdminPage() {
       formData.append('file', file);
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
       const { url } = await uploadRes.json();
-      const scanRes = await fetch('/api/scan', { 
-        method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ image: url }) 
-      });
+      const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ image: url }) });
       const { result } = await scanRes.json();
       setNewWine({ ...newWine, ...JSON.parse(result), image: url });
-    } catch (err) { alert("解析に失敗しました。画像を変えて試してください。"); } finally { setLoading(false); }
+    } catch (err) { alert("解析に失敗。画像を変えて試してください。"); } finally { setLoading(false); }
   };
 
   const handleSave = async () => {
-    await fetch('/api/wines', { 
-      method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(newWine) 
-    });
+    await fetch('/api/wines', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(newWine) });
     setNewWine(initialWineState); setEditingId(null); fetchWines();
+  };
+
+  const exportCSV = () => {
+    const headers = "番号,カタカナ名,アルファベット,国,産地,品種,color,タイプ,年,販売価格,仕入れ値,在庫,オススメ解説,aroma,pairing,甘味,ボディ,酸味,タンニン,画像URL\n";
+    const rows = wines.map((w: any) => `"${w.id}","${w.name_jp}","${w.name_en}","${w.country}","${w.region}","${w.grape}","${w.color}","${w.type}","${w.vintage}","${w.price}","${w.cost}","${w.stock}","${(w.advice||'').replace(/"/g,'""')}","${w.aroma}","${w.pairing}","${w.sweetness}","${w.body}","${w.acidity}","${w.tannin}","${w.image}"`).join("\n");
+    const blob = new Blob(["\ufeff" + headers + rows], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `wine_list.csv`;
+    link.click();
+  };
+
+  const importCSV = (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const lines = (event.target?.result as string).split("\n").filter(l => l.trim()).slice(1);
+      const imported = lines.map(line => {
+        const c = line.split('","').map(s => s.replace(/"/g, ''));
+        return { id: c[0] || Date.now().toString(), name_jp: c[1], name_en: c[2], country: c[3], region: c[4], grape: c[5], color: c[6], type: c[7], vintage: c[8], price: c[9], cost: c[10], stock: c[11], advice: c[12], aroma: c[13], pairing: c[14], sweetness: c[15], body: c[16], acidity: c[17], tannin: c[18], image: c[19] };
+      });
+      await fetch('/api/wines/bulk', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(imported) });
+      fetchWines();
+      alert("インポート完了");
+    };
+    reader.readAsText(file);
   };
 
   if (!isLoggedIn) return (
@@ -80,9 +95,9 @@ export default function AdminPage() {
         <form onSubmit={(e:any) => { e.preventDefault(); setIsLoggedIn(true); localStorage.setItem('wine_store_email', auth.email); }} className="space-y-4">
           <div className="relative"><Mail className="absolute left-4 top-4 text-slate-400" size={20}/><input type="email" placeholder="メールアドレス" value={auth.email} onChange={e => setAuth({...auth, email: e.target.value})} className="w-full p-4 pl-12 bg-slate-100 rounded-2xl font-bold outline-none focus:ring-2 ring-amber-500" required /></div>
           {!isForgotMode && <div className="relative"><Lock className="absolute left-4 top-4 text-slate-400" size={20}/><input type="password" placeholder="パスワード" value={auth.pass} onChange={e => setAuth({...auth, pass: e.target.value})} className="w-full p-4 pl-12 bg-slate-100 rounded-2xl font-bold outline-none focus:ring-2 ring-amber-500" required /></div>}
-          <button className="w-full bg-black text-white py-5 rounded-2xl font-black text-lg shadow-xl">{isForgotMode ? "リセット案内を送信" : "ログイン"}</button>
+          <button className="w-full bg-black text-white py-5 rounded-2xl font-black text-lg shadow-xl">{isForgotMode ? "案内を送信" : "ログイン"}</button>
         </form>
-        <button onClick={() => setIsForgotMode(!isForgotMode)} className="w-full mt-6 text-sm font-bold text-slate-400">{isForgotMode ? "ログインへ" : "パスワードを忘れた場合"}</button>
+        <button onClick={() => setIsForgotMode(!isForgotMode)} className="w-full mt-6 text-sm font-bold text-slate-400 underline">{isForgotMode ? "ログインへ" : "パスワードを忘れた場合"}</button>
       </div>
     </div>
   );
@@ -96,23 +111,23 @@ export default function AdminPage() {
 
       <div className="bg-amber-50 p-6 rounded-3xl mb-8 border border-amber-100 flex gap-3 items-center">
         <Key className="text-amber-500" />
-        <input type="password" placeholder="Gemini API Key (未入力なら無料Llamaを使用)" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} className="flex-1 bg-white p-3 rounded-xl text-xs font-mono outline-none" />
-        <button onClick={saveConfig} className="bg-amber-500 text-white px-4 py-3 rounded-xl font-black text-xs">保存</button>
+        <input type="password" placeholder="Gemini API Key (店舗用)" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} className="flex-1 bg-white p-3 rounded-xl text-xs font-mono outline-none" />
+        <button onClick={async () => { await fetch('/api/config', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ gemini_key: geminiKey }) }); alert("保存完了"); }} className="bg-amber-500 text-white px-4 py-3 rounded-xl font-black text-xs">保存</button>
       </div>
 
       <div className="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 mb-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <label className="aspect-[3/4] bg-slate-100 rounded-3xl overflow-hidden flex flex-col items-center justify-center relative cursor-pointer border-2 border-dashed border-slate-200">
-            {newWine.image ? <img src={newWine.image} className="w-full h-full object-cover" /> : <div className="text-center p-4"><Camera size={48} className="mx-auto mb-2 text-slate-300"/><p className="text-[10px] font-black text-slate-400">ボトルを撮影</p></div>}
+            {newWine.image ? <img src={newWine.image} className="w-full h-full object-cover" /> : <div className="text-center p-4"><Camera size={48} className="mx-auto mb-2 text-slate-300"/><p className="text-[10px] font-black text-slate-400">撮影してAI解析</p></div>}
             {loading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><Loader2 className="text-white animate-spin" size={48} /></div>}
             <input type="file" accept="image/*" capture="environment" onChange={handleScan} className="hidden" />
           </label>
           <div className="space-y-3">
             <select value={newWine.color} onChange={e => setNewWine({...newWine, color: e.target.value})} className="w-full p-3 bg-slate-100 rounded-xl font-black text-black">
-              <option value="赤">赤ワイン</option><option value="白">白ワイン</option><option value="泡">泡</option>
+              <option value="赤">赤ワイン</option><option value="白">白ワイン</option><option value="泡">スパークリング</option>
             </select>
-            <input type="text" placeholder="名前" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl font-bold border-2 border-slate-100 text-black" />
-            <div className="grid grid-cols-2 gap-2"><input type="number" placeholder="売価" value={newWine.price} onChange={e => setNewWine({...newWine, price: e.target.value})} className="p-3 bg-amber-50 rounded-xl font-bold border-2 border-amber-100 text-black" /><input type="number" placeholder="在庫" value={newWine.stock} onChange={e => setNewWine({...newWine, stock: e.target.value})} className="p-3 bg-green-50 rounded-xl font-bold border-2 border-green-100 text-black" /></div>
+            <input type="text" placeholder="名前" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-3 bg-slate-50 rounded-xl font-bold border-2 border-slate-100" />
+            <div className="grid grid-cols-2 gap-2"><input type="number" placeholder="売価" value={newWine.price} onChange={e => setNewWine({...newWine, price: e.target.value})} className="p-3 bg-amber-50 rounded-xl font-bold border-2 border-amber-100" /><input type="number" placeholder="在庫" value={newWine.stock} onChange={e => setNewWine({...newWine, stock: e.target.value})} className="p-3 bg-green-50 rounded-xl font-bold border-2 border-green-100" /></div>
           </div>
         </div>
 
@@ -127,8 +142,32 @@ export default function AdminPage() {
           )}
         </div>
 
-        <textarea placeholder="ソムリエ解説" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold h-24 border-2 border-slate-100 text-black" />
-        <button onClick={handleSave} className="w-full bg-black text-white py-6 rounded-3xl font-black text-xl active:scale-95 transition-all"><Save size={24}/> {editingId ? '更新' : '登録'}</button>
+        <textarea placeholder="ソムリエ解説" value={newWine.advice} onChange={e => setNewWine({...newWine, advice: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl font-bold h-24 border-2 border-slate-100" />
+        <button onClick={handleSave} className="w-full bg-black text-white py-6 rounded-3xl font-black text-xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"><Save size={24}/> {editingId ? '更新' : '登録'}</button>
+      </div>
+
+      <div className="flex gap-2 mb-12">
+        <button onClick={exportCSV} className="flex-1 bg-white border-2 border-slate-200 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors"><Download size={16}/> CSV出力</button>
+        <label className="flex-1 bg-white border-2 border-slate-200 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 hover:bg-slate-50 cursor-pointer"><Upload size={16}/> CSV取込<input type="file" accept=".csv" onChange={importCSV} className="hidden" /></label>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3">
+        {wines.map((wine: any) => (
+          <div key={wine.id} className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-md border border-slate-100">
+            <img src={wine.image} className="w-16 h-20 rounded-xl object-cover shadow-sm bg-slate-50" />
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-sm truncate">{wine.name_jp}</p>
+              <p className="text-[10px] font-bold text-amber-600">¥{Number(wine.price).toLocaleString()} <span className="text-slate-300 ml-2">在庫: {wine.stock}</span></p>
+            </div>
+            <button onClick={() => {setNewWine(wine); setEditingId(wine.id); window.scrollTo({top:0, behavior:'smooth'});}} className="p-3 bg-slate-50 rounded-2xl text-slate-300 hover:text-black transition-colors"><Edit3 size={20}/></button>
+          </div>
+        ))}
+      </div>
+      
+      <div className="mt-12 p-8 bg-slate-900 text-white rounded-[3rem] shadow-2xl relative overflow-hidden">
+        <p className="text-[10px] font-black opacity-50 uppercase tracking-[0.3em] mb-3">Your Public Menu URL</p>
+        <p className="text-xs font-mono break-all font-bold text-[#c5a059] italic mb-6">https://{typeof window !== 'undefined' ? window.location.hostname : ''}/{auth.email}</p>
+        <a href={`/${auth.email}`} target="_blank" className="inline-flex items-center gap-2 bg-white/10 px-6 py-3 rounded-xl text-[10px] font-black tracking-widest uppercase transition hover:bg-white/20">メニューを表示 <ExternalLink size={14}/></a>
       </div>
     </div>
   );
@@ -136,6 +175,6 @@ export default function AdminPage() {
 
 function FlavorField({ label, val, set }: any) {
   return (
-    <div className="space-y-1 text-center"><label className="text-[10px] font-black text-slate-400 uppercase">{label}</label><input type="number" min="1" max="5" value={val} onChange={e => set(e.target.value)} className="w-full p-2 bg-slate-50 rounded-xl font-black text-center border-2 border-slate-100 text-black" /></div>
+    <div className="space-y-1 text-center"><label className="text-[10px] font-black text-slate-400 uppercase">{label}</label><input type="number" min="1" max="5" value={val} onChange={e => set(e.target.value)} className="w-full p-2 bg-slate-50 rounded-xl font-black text-center border-2 border-slate-100 text-black outline-none focus:border-amber-500" /></div>
   );
 }

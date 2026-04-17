@@ -1,3 +1,4 @@
+// app/api/wines/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -24,6 +25,21 @@ export async function POST(req: Request) {
   } else {
     wines.push({ ...wineData, id: Date.now().toString() });
   }
+
+  await kv.put(`store:${storeId}`, JSON.stringify(wines));
+  return NextResponse.json({ success: true });
+}
+
+export async function DELETE(req: Request) {
+  const storeId = req.headers.get('x-store-id');
+  const { id } = await req.json();
+  const kv = getRequestContext().env.WINE_KV;
+
+  const currentData = await kv.get(`store:${storeId}`);
+  if (!currentData) return NextResponse.json({ success: true });
+
+  let wines = JSON.parse(currentData);
+  wines = wines.filter((w: any) => w.id !== id);
 
   await kv.put(`store:${storeId}`, JSON.stringify(wines));
   return NextResponse.json({ success: true });

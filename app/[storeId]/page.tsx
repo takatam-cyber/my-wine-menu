@@ -1,10 +1,9 @@
-// app/[storeId]/page.tsx
 "use client";
 export const runtime = 'edge';
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { Sparkles, MessageCircle, X, Send, Loader2, Search, Filter } from 'lucide-react';
+import { Sparkles, MessageCircle, X, Send, Loader2 } from 'lucide-react';
 
 export default function StoreMenu() {
   const { storeId } = useParams();
@@ -15,24 +14,23 @@ export default function StoreMenu() {
   const [history, setHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
-  // フィルタ用State
+  // フィルタState
   const [filterColor, setFilterColor] = useState('ALL');
   const [maxPrice, setMaxPrice] = useState(30000);
 
   useEffect(() => {
     if (storeId) {
-      const decodedStoreId = decodeURIComponent(storeId as string);
-      fetch(`/api/wines?storeId=${decodedStoreId}`).then(res => res.json()).then(data => setWines(Array.isArray(data) ? data : []));
-      fetch(`/api/config`, { headers: { 'x-store-id': decodedStoreId } }).then(res => res.json()).then(data => setConfig(data));
+      const decodedId = decodeURIComponent(storeId as string);
+      fetch(`/api/wines?storeId=${decodedId}`).then(res => res.json()).then(data => setWines(Array.isArray(data) ? data : []));
+      fetch(`/api/config`, { headers: { 'x-store-id': decodedId } }).then(res => res.json()).then(data => setConfig(data));
     }
   }, [storeId]);
 
-  // 在庫があり、フィルタに合致するワインのみ抽出
   const filteredWines = useMemo(() => {
     return wines.filter((w: any) => {
       const matchColor = filterColor === 'ALL' || w.color === filterColor;
       const matchPrice = Number(w.price) <= maxPrice;
-      const inStock = !w.stock || parseInt(w.stock) > 0; // 在庫0以外は表示
+      const inStock = !w.stock || parseInt(w.stock) > 0;
       return matchColor && matchPrice && inStock;
     });
   }, [wines, filterColor, maxPrice]);
@@ -43,7 +41,6 @@ export default function StoreMenu() {
     setHistory(prev => [...prev, { role: 'user', content: msgToSend }]);
     setMessage("");
     setIsTyping(true);
-
     try {
       const res = await fetch('/api/sommelier', {
         method: 'POST',
@@ -58,13 +55,13 @@ export default function StoreMenu() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-[#c5a059] font-serif pb-24">
-      <header className="py-24 px-6 text-center border-b border-white/5">
+      <header className="py-20 px-6 text-center border-b border-white/5">
         <h1 className="text-4xl font-light tracking-[0.4em] text-[#f8f8f8] uppercase mb-4">{config.menu_name || 'WINE MENU'}</h1>
         <div className="h-[1px] w-24 bg-[#c5a059] mx-auto opacity-30"></div>
         <p className="text-[10px] tracking-[0.5em] mt-8 opacity-40 uppercase font-sans font-black tracking-widest">Sommelier Selection</p>
       </header>
 
-      {/* スティッキー・フィルタバー */}
+      {/* スティッキーフィルタバー */}
       <div className="sticky top-0 z-40 bg-black/90 backdrop-blur-md py-6 px-6 border-b border-white/5 space-y-4 shadow-xl">
         <div className="max-w-xl mx-auto flex gap-2 overflow-x-auto no-scrollbar pb-1">
           {['ALL', '赤', '白', '泡'].map(c => (
@@ -80,38 +77,35 @@ export default function StoreMenu() {
       </div>
 
       <div className="max-w-xl mx-auto px-6 space-y-24 mt-16">
-        {filteredWines.length === 0 ? (
-          <div className="text-center py-20 opacity-30 font-sans text-sm tracking-widest uppercase">No wines found.</div>
-        ) : (
-          filteredWines.map((wine: any) => (
-            <div key={wine.id} className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="relative aspect-[3/2] rounded-sm overflow-hidden shadow-2xl border border-white/5 bg-[#1a1c23]">
-                {wine.image && <img src={wine.image} className="w-full h-full object-cover opacity-70" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent"></div>
-                <div className="absolute bottom-10 left-10 right-10 flex justify-between items-end">
-                  <div className="pr-4">
-                    <p className="text-[10px] tracking-[0.4em] font-sans font-black uppercase text-[#c5a059] opacity-80">{wine.country} / {wine.vintage}</p>
-                    <h2 className="text-3xl text-white font-light leading-tight">{wine.name_jp}</h2>
-                  </div>
-                  <p className="text-2xl font-sans text-white font-bold tracking-tighter">¥{Number(wine.price).toLocaleString()}</p>
+        {filteredWines.map((wine: any) => (
+          <div key={wine.id} className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="relative aspect-[3/2] rounded-sm overflow-hidden shadow-2xl border border-white/5 bg-[#1a1c23]">
+              {wine.image && <img src={wine.image} className="w-full h-full object-cover opacity-70" />}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent"></div>
+              <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
+                <div className="pr-4">
+                  <p className="text-[10px] tracking-[0.4em] font-sans font-black uppercase text-[#c5a059] opacity-80">{wine.country} / {wine.vintage}</p>
+                  <h2 className="text-3xl text-white font-light leading-tight">{wine.name_jp}</h2>
                 </div>
-              </div>
-              
-              <div className="space-y-8 px-2">
-                <div className="flex flex-wrap gap-4 text-[11px] font-sans font-black uppercase tracking-[0.2em] opacity-40">
-                  <span className="bg-white/10 px-3 py-1 rounded-full">{wine.type}</span>
-                  <span>{wine.region}</span>
-                  <span>{wine.grape}</span>
-                </div>
-                <p className="text-xl text-slate-200 leading-relaxed italic font-light border-l-2 border-[#c5a059]/40 pl-8">"{wine.advice}"</p>
-                {wine.pairing && <div className="pt-4 flex items-center gap-3"><span className="text-[9px] font-sans font-black uppercase tracking-widest text-[#c5a059] opacity-50 px-2 py-1 border border-[#c5a059]/30 rounded">Best Pairing</span><p className="text-sm font-sans text-white/60">{wine.pairing}</p></div>}
+                <p className="text-2xl font-sans text-white font-bold tracking-tighter">¥{Number(wine.price).toLocaleString()}</p>
               </div>
             </div>
-          ))
-        )}
+            
+            <div className="space-y-8 px-2">
+              <div className="flex flex-wrap gap-4 text-[11px] font-sans font-black uppercase tracking-[0.2em] opacity-40">
+                <span className="bg-white/10 px-3 py-1 rounded-full">{wine.type}</span>
+                <span>{wine.region}</span>
+                <span>{wine.grape}</span>
+              </div>
+              <p className="text-xl text-slate-200 leading-relaxed italic font-light border-l-2 border-[#c5a059]/40 pl-8">"{wine.advice}"</p>
+              {wine.pairing && <div className="pt-4 flex items-center gap-3"><span className="text-[9px] font-sans font-black uppercase tracking-widest text-[#c5a059] opacity-50 px-2 py-1 border border-[#c5a059]/30 rounded">Best Pairing</span><p className="text-sm font-sans text-white/60">{wine.pairing}</p></div>}
+            </div>
+          </div>
+        ))}
       </div>
 
-      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 transition-all hover:scale-110 active:scale-95 shadow-amber-500/20">
+      {/* フローティングチャットボタン */}
+      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 hover:scale-110 active:scale-95 transition-all shadow-amber-500/20">
         <MessageCircle size={32}/>
       </button>
 
@@ -131,7 +125,7 @@ export default function StoreMenu() {
             )}
             {history.map((h: any, i) => (
               <div key={i} className={`flex ${h.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold font-sans text-sm' : 'bg-white/5 text-slate-100 leading-relaxed font-serif'}`}>
+                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold font-sans text-sm shadow-lg' : 'bg-white/5 text-slate-100 leading-relaxed font-serif'}`}>
                   {h.content}
                 </div>
               </div>

@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const { image } = await req.json();
     const env = getRequestContext().env;
 
-    // 画像データのバイナリ化
+    // 画像データのバイナリ化処理
     let imageBuffer: ArrayBuffer;
     if (image.startsWith('http')) {
       const imgRes = await fetch(image);
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       imageBuffer = bytes.buffer;
     }
 
-    // 世界最高峰のソムリエ・プロンプトによる解析
+    // 指定された詳細なソムリエ・プロンプトを統合
     const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       prompt: `
 # Role
@@ -63,12 +63,15 @@ export async function POST(req: Request) {
       image: [...new Uint8Array(imageBuffer)],
     });
 
-    let resultText = aiResponse.response || aiResponse.description || (typeof aiResponse === 'string' ? aiResponse : JSON.stringify(aiResponse));
-
-    // JSONの切り出し
+    // レスポンスからJSON文字列を抽出する成功ロジック
+    let resultText = aiResponse.response || aiResponse.description || JSON.stringify(aiResponse);
     const firstBrace = resultText.indexOf('{');
     const lastBrace = resultText.lastIndexOf('}');
-    if (firstBrace === -1 || lastBrace === -1) throw new Error("解析結果がJSON形式ではありませんでした。");
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error("AI could not generate a valid JSON.");
+    }
+    
     const cleanJson = resultText.substring(firstBrace, lastBrace + 1);
 
     return NextResponse.json({ result: cleanJson });

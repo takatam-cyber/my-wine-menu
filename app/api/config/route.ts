@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const storeId = req.headers.get('x-store-id');
   const kv = getRequestContext().env.WINE_KV;
   const config = await kv.get(`config:${storeId}`);
-  return NextResponse.json(config ? JSON.parse(config) : {});
+  return NextResponse.json(config ? JSON.parse(config) : { menu_name: '', slug: '', gemini_key: '' });
 }
 
 export async function POST(req: Request) {

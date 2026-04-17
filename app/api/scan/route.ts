@@ -1,4 +1,4 @@
-// app/api/scan/route.ts (Llama 3.2 Vision 解析用・決定版)
+// app/api/scan/route.ts (Llama 3.2 安定版)
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -23,15 +23,24 @@ export async function POST(req: Request) {
       imageBuffer = bytes.buffer;
     }
 
-    // 2. Llama 3.2 Vision でワイン情報を解析
+    // 2. Llama 3.2 Vision で解析
     const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       prompt: "Analyze this wine label and extract info. Return ONLY a valid JSON in Japanese: {name_jp, name_en, country, region, grape, type, vintage, price, advice}",
       image: [...new Uint8Array(imageBuffer)],
     });
 
-    const resultText = aiResponse.description || aiResponse.response || JSON.stringify(aiResponse);
+    // --- 修正箇所: 返答を確実に文字列にする ---
+    let resultText = "";
+    if (typeof aiResponse.response === 'string') {
+      resultText = aiResponse.response;
+    } else if (typeof aiResponse.description === 'string') {
+      resultText = aiResponse.description;
+    } else {
+      resultText = JSON.stringify(aiResponse);
+    }
+    // ---------------------------------------
     
-    // Markdownの装飾（```jsonなど）を除去してクリーンなJSONのみ抽出
+    // Markdown装飾などを除去
     const cleanJson = resultText.replace(/```json|```/g, '').trim();
 
     return NextResponse.json({ result: cleanJson });

@@ -8,7 +8,6 @@ export async function POST(req: Request) {
     const { image } = await req.json();
     const env = getRequestContext().env;
 
-    // 画像データのバイナリ化
     let imageBuffer: ArrayBuffer;
     if (image.startsWith('http')) {
       const imgRes = await fetch(image);
@@ -23,27 +22,39 @@ export async function POST(req: Request) {
       imageBuffer = bytes.buffer;
     }
 
-    // Llama 3.2 Vision による解析（無料枠）
-    const llamaRes: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
-      prompt: "Analyze this wine label and return ONLY a valid raw JSON object in Japanese. Required Fields: {name_jp, name_en, country, region, grape, color, type, vintage, price, cost, advice, aroma, pairing, sweetness, body, acidity, tannin}. No markdown, no conversation.",
+    const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
+      prompt: `Analyze this wine label and return a JSON object in Japanese.
+      Required JSON structure:
+      {
+        "name_jp": "カタカナ名",
+        "name_en": "Alphabet Name",
+        "country": "国",
+        "region": "産地",
+        "grape": "品種",
+        "color": "赤/白/ロゼ/泡",
+        "type": "フルボディ/辛口など",
+        "vintage": "年",
+        "price": 5000,
+        "cost": 2000,
+        "advice": "ソムリエ風の魅力的な解説",
+        "aroma": "1-5 (香りの強さ)",
+        "pairing": "合う料理",
+        "sweetness": "1-5 (甘味)",
+        "body": "1-5 (重さ)",
+        "acidity": "1-5 (酸味)",
+        "tannin": "1-5 (渋み ※白なら0)"
+      }
+      Return ONLY the raw JSON object.`,
       image: [...new Uint8Array(imageBuffer)],
     });
 
-    let resultText = llamaRes.response || llamaRes.description || (typeof llamaRes === 'string' ? llamaRes : JSON.stringify(llamaRes));
-
-    // JSONの切り出しロジック
+    let resultText = aiResponse.response || aiResponse.description || JSON.stringify(aiResponse);
     const firstBrace = resultText.indexOf('{');
     const lastBrace = resultText.lastIndexOf('}');
-    
-    if (firstBrace === -1 || lastBrace === -1) {
-      throw new Error("AIが有効なデータを作成できませんでした。もう一度撮影してください。");
-    }
-    
     const cleanJson = resultText.substring(firstBrace, lastBrace + 1);
-    return NextResponse.json({ result: cleanJson });
 
+    return NextResponse.json({ result: cleanJson });
   } catch (e: any) {
-    console.error("Scan Error:", e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

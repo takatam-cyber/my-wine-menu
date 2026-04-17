@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
     const aiResponse: any = await env.AI.run('@cf/meta/llama-3.2-11b-vision-instruct', {
       prompt: `Analyze this wine label. 
-      1. Extract the full English Name of the wine.
+      1. Extract the full English Name.
       2. Determine the wine color (Red, White, Rosé, or Sparkling).
       Return ONLY a raw JSON object: {"name_en": "...", "color": "赤/白/ロゼ/泡"}`,
       image: [...new Uint8Array(imageBuffer)],

@@ -1,3 +1,4 @@
+// app/[storeId]/page.tsx
 "use client";
 export const runtime = 'edge';
 
@@ -14,26 +15,23 @@ export default function StoreMenu() {
   const [history, setHistory] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
 
+  // フィルタ用State
   const [filterColor, setFilterColor] = useState('ALL');
   const [maxPrice, setMaxPrice] = useState(30000);
 
   useEffect(() => {
     if (storeId) {
-      // エンコードされたID（メールアドレス）を正しくデコード
       const decodedStoreId = decodeURIComponent(storeId as string);
-      fetch(`/api/wines?storeId=${decodedStoreId}`).then(res => res.json()).then(data => {
-        setWines(Array.isArray(data) ? data : []);
-      });
+      fetch(`/api/wines?storeId=${decodedStoreId}`).then(res => res.json()).then(data => setWines(Array.isArray(data) ? data : []));
       fetch(`/api/config`, { headers: { 'x-store-id': decodedStoreId } }).then(res => res.json()).then(data => setConfig(data));
     }
   }, [storeId]);
 
-  // 在庫があり、フィルタに合致するワインを抽出
   const filteredWines = useMemo(() => {
     return wines.filter((w: any) => {
       const matchColor = filterColor === 'ALL' || w.color === filterColor;
       const matchPrice = Number(w.price) <= maxPrice;
-      const inStock = !w.stock || parseInt(w.stock) > 0; // 在庫0以外は表示
+      const inStock = !w.stock || parseInt(w.stock) > 0;
       return matchColor && matchPrice && inStock;
     });
   }, [wines, filterColor, maxPrice]);
@@ -111,7 +109,7 @@ export default function StoreMenu() {
         )}
       </div>
 
-      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 hover:scale-110 active:scale-95 transition-all">
+      <button onClick={() => setChatOpen(true)} className="fixed bottom-8 right-8 w-16 h-16 bg-[#c5a059] text-black rounded-full shadow-2xl flex items-center justify-center animate-bounce z-50 hover:scale-110 transition-all">
         <MessageCircle size={32}/>
       </button>
 
@@ -125,13 +123,13 @@ export default function StoreMenu() {
             {history.length === 0 && (
               <div className="space-y-4 pt-10">
                 {['今の気分に合う赤は？', 'お肉料理に合う重めな一本', '1万円以下でおすすめは？'].map(q => (
-                  <button key={q} onClick={() => handleChat(q)} className="w-full text-left p-5 bg-white/5 rounded-2xl text-slate-200 border border-white/10 active:border-[#c5a059] transition-all font-sans text-sm">{q}</button>
+                  <button key={q} onClick={() => handleChat(q)} className="w-full text-left p-5 bg-white/5 rounded-2xl text-slate-200 border border-white/10 transition-all font-sans text-sm">{q}</button>
                 ))}
               </div>
             )}
             {history.map((h: any, i) => (
               <div key={i} className={`flex ${h.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold font-sans text-sm shadow-lg' : 'bg-white/5 text-slate-100 leading-relaxed font-serif'}`}>
+                <div className={`max-w-[85%] p-5 rounded-2xl ${h.role === 'user' ? 'bg-[#c5a059] text-black font-bold font-sans text-sm' : 'bg-white/5 text-slate-100 leading-relaxed font-serif'}`}>
                   {h.content}
                 </div>
               </div>

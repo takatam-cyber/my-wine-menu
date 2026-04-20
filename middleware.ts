@@ -30,7 +30,7 @@ export async function middleware(req: NextRequest) {
 
     // 3. インポーター専用（マスター管理）の保護
     // 環境変数 ADMIN_EMAIL がない場合は、あなたのメールアドレスを直接書く
-    const adminEmail = process.env.ADMIN_EMAIL || 'your-admin@email.com'; 
+    const adminEmail = process.env.ADMIN_EMAIL || 'takatam@pieroth.jp'; 
     if (pathname === '/admin/master' && payload.email !== adminEmail) {
       return NextResponse.redirect(new URL('/admin', req.url));
     }

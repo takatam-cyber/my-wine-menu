@@ -51,3 +51,22 @@ async function sendEmail(to: string, subject: string, html: string, env: any) {
     body: JSON.stringify({ from: 'WineMenu <onboarding@resend.dev>', to: [to], subject, html })
   });
 }
+// app/api/auth/route.ts の一部
+import { signJWT } from '@/lib/auth';
+
+// ... loginアクション内 ...
+if (password === savedPassword) {
+  const token = await signJWT({ email });
+  const response = NextResponse.json({ success: true });
+  
+  // HTTP-only Cookieをセット（JavaScriptから盗み見られない）
+  response.cookies.set('auth_token', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 60 * 60 * 24 // 1日
+  });
+  
+  return response;
+}

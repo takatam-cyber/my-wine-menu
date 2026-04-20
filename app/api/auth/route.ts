@@ -1,16 +1,16 @@
-// app/api/auth/route.ts (完全清掃・パス修正版)
+// app/api/auth/route.ts (完全清掃版)
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { signJWT } from '../../../lib/auth'; // 相対パスで直接指定
+import { signJWT } from '../../../lib/auth'; // @/ を使わず相対パスを死守
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { action, email, password } = body;
+    const { action, email, password } = await req.json();
     const env = getRequestContext().env;
     const kv = env.WINE_KV;
 
+    // 1. ログイン検証
     if (action === 'login') {
       const userData = await kv.get(`user:${email}`);
       if (!userData) return NextResponse.json({ error: "ユーザーが見つかりません" }, { status: 401 });
@@ -28,12 +28,19 @@ export async function POST(req: Request) {
         path: '/',
         maxAge: 60 * 60 * 24
       });
-      
       return response;
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    // 2. 会員登録
+    if (action === 'register') {
+      const exists = await kv.get(`user:${email}`);
+      if (exists) return NextResponse.json({ error: "登録済み" }, { status: 400 });
+      const generatedPass = Math.random().toString(36).slice(-8); 
+      await kv.put(`user:${email}`, JSON.stringify({ password: generatedPass }));
+      return NextResponse.json({ success: true, message: "登録しました" });
+    }
 
+    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

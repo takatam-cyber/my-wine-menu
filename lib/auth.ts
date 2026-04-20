@@ -1,5 +1,5 @@
-// lib/auth.ts
-const JWT_SECRET = "YOUR_SUPER_SECRET_KEY_2026"; // 本番では環境変数へ
+// lib/auth.ts (完全版)
+const JWT_SECRET = process.env.JWT_SECRET || "YOUR_SUPER_SECRET_KEY_2026";
 
 async function getCryptoKey() {
   return await crypto.subtle.importKey(
@@ -14,18 +14,10 @@ async function getCryptoKey() {
 export async function signJWT(payload: any) {
   const header = { alg: "HS256", typ: "JWT" };
   const encodedHeader = btoa(JSON.stringify(header));
-  const encodedPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) })); // 24時間有効
-  
+  const encodedPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) }));
   const key = await getCryptoKey();
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`)
-  );
-  
-  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-    
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`));
+  const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   return `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
 }
 
@@ -35,15 +27,10 @@ export async function verifyJWT(token: string) {
     const key = await getCryptoKey();
     const data = new TextEncoder().encode(`${header}.${payload}`);
     const sigArray = new Uint8Array(atob(signature.replace(/-/g, "+").replace(/_/g, "/")).split("").map(c => c.charCodeAt(0)));
-    
     const isValid = await crypto.subtle.verify("HMAC", key, sigArray, data);
     if (!isValid) return null;
-    
     const decodedPayload = JSON.parse(atob(payload));
     if (decodedPayload.exp < Math.floor(Date.now() / 1000)) return null;
-    
     return decodedPayload;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }

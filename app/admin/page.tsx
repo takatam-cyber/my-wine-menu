@@ -61,7 +61,11 @@ export default function StoreAdmin() {
          <div className="flex items-center gap-4"><div className="bg-black text-white p-3 rounded-2xl"><WineIcon/></div><p className="font-black text-black">{auth.email}</p></div>
          <div className="flex gap-4">
            <a href={`/${encodeURIComponent(auth.email)}`} target="_blank" className="bg-amber-500 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2"><ExternalLink size={18}/> メニュー表示</a>
-           <button onClick={() => {localStorage.clear(); location.reload();}} className="bg-slate-100 text-slate-400 p-3 rounded-xl"><LogOut/></button>
+           <button onClick={() => {const handleLogout = async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  localStorage.clear();
+  location.href = '/admin';
+};; location.reload();}} className="bg-slate-100 text-slate-400 p-3 rounded-xl"><LogOut/></button>
          </div>
       </div>
 

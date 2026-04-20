@@ -53,3 +53,16 @@ export async function GET(req: Request) {
   `).bind(storeId).all();
   // ... 以下、パース処理 ...
 }
+// GET部分のみ抜粋
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const slug = searchParams.get('slug'); // storeIdではなくslugを受け取る
+  const db = getRequestContext().env.DB;
+
+  // Slugから店主のメールアドレス(store_id)を特定する
+  const store = await db.prepare("SELECT store_email FROM store_configs WHERE slug = ?").bind(slug).first();
+  if (!store) return NextResponse.json([]);
+
+  const storeId = store.store_email;
+  // ... あとは既存のJOINクエリ ...
+}

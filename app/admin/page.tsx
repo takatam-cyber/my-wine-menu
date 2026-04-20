@@ -252,3 +252,13 @@ export default function StoreAdmin() {
     </div>
   );
 }
+// app/admin/page.tsx 内のランキング表示部分
+<div className="bg-[#0f172a] text-white p-10 rounded-[3rem] shadow-2xl border border-slate-800">
+  <div className="flex justify-between items-center mb-8">
+    <h2 className="text-2xl font-black italic flex items-center gap-3">
+      <BarChart3 className="text-amber-400" /> 店内人気トレンド
+    </h2>
+    <button onClick={() => fetch('/api/analytics/ranking').then(res => res.json()).then(setRanking)} className="text-xs bg-white/10 px-4 py-2 rounded-full hover:bg-white/20 transition-all">更新</button>
+  </div>
+  {/* ...ランキング表示... */}
+</div>

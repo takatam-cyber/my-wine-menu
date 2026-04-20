@@ -1,8 +1,8 @@
-// app/api/auth/route.ts
+// app/api/auth/route.ts (完全清掃・パス修正版)
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { signJWT } from '../../../lib/auth'; // @/ を使わず、確実に届く相対パスを使用
+import { signJWT } from '../../../lib/auth'; // 相対パスで直接指定
 
 export async function POST(req: Request) {
   try {
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

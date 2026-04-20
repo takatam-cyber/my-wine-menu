@@ -1,3 +1,12 @@
+// middleware.ts 
+// ...中略...
+    // 管理者メールアドレスは環境変数 ADMIN_EMAIL から取得する設計にする
+    const adminEmail = process.env.ADMIN_EMAIL || 'あなたの本物のメールアドレス';
+    
+    if (pathname === '/admin/master' && payload.email !== adminEmail) {
+      return NextResponse.redirect(new URL('/admin', req.url));
+    }
+// ...中略...
 // middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';

@@ -1,4 +1,3 @@
-// app/api/sommelier/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -8,19 +7,28 @@ export async function POST(req: Request) {
     const { message, history, wineList } = await req.json();
     const env = getRequestContext().env;
 
-    const wineContext = wineList.map((w: any) => 
+    // キーワードによる簡易フィルタリング（RAGの初期段階）
+    // ユーザーの質問に関連しそうなワイン（色や料理名）だけでコンテキストを構成する
+    const keywords = ["赤", "白", "泡", "ロゼ", "肉", "魚", "パスタ", "チーズ"];
+    const relevantKeywords = keywords.filter(k => message.includes(k));
+
+    let filteredList = wineList;
+    if (relevantKeywords.length > 0) {
+      filteredList = wineList.filter((w: any) => 
+        relevantKeywords.some(k => w.name_jp.includes(k) || w.ai_explanation.includes(k) || w.pairing.includes(k))
+      ).slice(0, 15); // 最大15件に絞ってトークンを節約
+    } else {
+      filteredList = wineList.slice(0, 15);
+    }
+
+    const wineContext = filteredList.map((w: any) => 
       `- ID:${w.id} | ${w.name_jp} | ¥${w.price_bottle} | 解説:${w.ai_explanation} | 料理:${w.pairing}`
     ).join("\n");
 
-    const systemPrompt = `あなたは銀座の高級レストランで「神の舌」と称される一流ソムリエです。
-お客様の言葉の裏にある「本当の望み」を汲み取り、優雅で温かみのある日本語でエスコートしてください。
+    const systemPrompt = `あなたは銀座の高級レストランの一流ソムリエです。
+優雅な日本語で接客してください。提案するワインのIDを、必ず回答の最後に 【ID:番号】 形式で添えてください。
 
-【接客の指針】
-1. 感情に響く言葉: 「お肉に合います」ではなく、「お肉の脂を綺麗に流し、旨味を何倍にも引き立てる、力強くも繊細な酸がございます」と語ってください。
-2. 簡潔さと深み: スマホで読みやすいよう、一回の回答は200〜300文字程度に抑えつつ、内容は濃く。
-3. カード表示の徹底: 提案するワインのIDを、必ず回答の最後に 【ID:番号】 形式で添えてください。これがないとお勧めカードが表示されません。
-
-提供リスト:
+提供リスト（現在のおすすめ）:
 ${wineContext}`;
 
     const llamaRes: any = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {

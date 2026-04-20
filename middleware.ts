@@ -1,14 +1,17 @@
-// middleware.ts (修正版)
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { verifyJWT } from './lib/auth';
+
 export async function middleware(req: NextRequest) {
   const token = req.cookies.get('auth_token')?.value;
   const { pathname, searchParams } = req.nextUrl;
 
   if (pathname === '/admin') return NextResponse.next();
 
-  // ★重要：api/wines かつ slugパラメータがある場合は、お客様のアクセスなので通す
-  if (pathname === '/api/wines' && searchParams.has('slug')) {
-    return NextResponse.next();
-  }
+  // 公開メニュー用のAPIアクセスを許可
+  if (pathname === '/api/wines' && searchParams.has('slug')) return NextResponse.next();
+  if (pathname.startsWith('/api/store/config/public')) return NextResponse.next();
 
   const isProtectedRoute = 
     pathname.startsWith('/admin') || 
@@ -28,3 +31,7 @@ export async function middleware(req: NextRequest) {
   }
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ['/admin/:path*', '/api/wines/:path*', '/api/store/config/:path*', '/api/analytics/:path*'],
+};

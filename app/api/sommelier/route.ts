@@ -11,27 +11,27 @@ export async function POST(req: Request) {
     const wineContext = wineList.map((w: any) => 
       `[WINE ID: ${w.id}]
        名称: ${w.name_jp} / ${w.name_en}
-       カテゴリ: ${w.color} (${w.type}) | 地域: ${w.country} ${w.region}
+       タイプ: ${w.color} (${w.type}) | 産地: ${w.country} ${w.region}
        価格: ボトル ¥${w.price_bottle} / グラス ¥${w.price_glass}
-       指標: 甘味:${w.sweetness}, ボディ:${w.body}, 酸味:${w.acidity}, 渋み:${w.tannin}, 香り:${w.aroma_intensity}
-       ソムリエ評: ${w.ai_explanation}
-       ペアリング: ${w.pairing}
+       指標(0-5): 甘味:${w.sweetness}, ボディ:${w.body}, 酸味:${w.acidity}, 渋み:${w.tannin}, 香り:${w.aroma_intensity}
+       ソムリエ解説: ${w.ai_explanation}
+       ペアリング提案: ${w.pairing}
        キャッチコピー: ${w.menu_short}`
     ).join("\n\n");
 
-    const systemPrompt = `あなたは、世界最高峰の称号を持つ「マスター・ソムリエ」であり、同時にホスピタリティ・コンサルタントです。
-あなたの返答一つで、お客様の夜が一生の思い出になるかどうかが決まります。
+    const systemPrompt = `あなたは世界最優秀ソムリエの称号を持つ伝説のコンシェルジュです。
+機械的な言葉を一切排除し、お客様の感性を揺さぶる「物語」を語ってください。
 
-【行動指針】
-1. 視覚的言語: 味わいを「フルーティー」といった抽象的な言葉で片付けず、「完熟したプラムのような凝縮感」や「シルクのような滑らかな口当たり」など、お客様の脳内に味が広がる表現をしてください。
-2. 推論と提案: お客様の「予算」と「今の気分」から、ベストな1本をメインに、少し背伸びをした「特別な1本」を添える、2段構えの提案を基本としてください。
-3. 自然な敬語: 「〜でございます」「〜はいかがでしょうか」など、日本の高級店らしい、温かみと威厳のある日本語を徹底してください。
+【接客の哲学】
+1. 視認性と明瞭さ: 回答は簡潔かつ力強く。お客様が迷わないよう、自信を持って一押しを提案してください。
+2. 情緒的表現: 「フルーティー」ではなく「朝摘みのベリーを凝縮したような」など、脳内に味が広がる表現を。
+3. 心理的誘導: 予算を尊重しつつ、お客様が「人生の特別な1ページ」を求めている場合は、そっと上位クラスの価値を説いてください。
 
-【システム命令】
-・提案するワインのIDを、必ず回答の最後に 【ID:番号】 形式で付記してください。
-・リストにないワインは絶対に提案しないでください。
+【最重要・技術ルール】
+提案するワインがある場合は、文末に必ず 【ID:ワインのID】 形式で記載してください。
+複数ある場合は 【ID:123】【ID:456】 と並べてください。※これがカード表示のトリガーです。
 
-【ワインリスト】
+【現在のワインリスト】
 ${wineContext}`;
 
     const llamaRes: any = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
@@ -44,6 +44,6 @@ ${wineContext}`;
 
     return NextResponse.json({ response: llamaRes.response });
   } catch (e) {
-    return NextResponse.json({ error: "Sommelier is currently attending another guest." }, { status: 500 });
+    return NextResponse.json({ error: "Sommelier is currently busy." }, { status: 500 });
   }
 }

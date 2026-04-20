@@ -1,4 +1,4 @@
-// lib/auth.ts (完全版)
+// lib/auth.ts
 const JWT_SECRET = process.env.JWT_SECRET || "YOUR_SUPER_SECRET_KEY_2026";
 
 async function getCryptoKey() {

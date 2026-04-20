@@ -176,3 +176,79 @@ export default function StoreAdmin() {
     </div>
   );
 }
+"use client";
+import { useState, useEffect } from 'react';
+import { Wine as WineIcon, BarChart3, Settings, ExternalLink, LogOut, Save } from 'lucide-react';
+
+export default function StoreAdmin() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [ranking, setRanking] = useState([]);
+  const [storeName, setStoreName] = useState("");
+  const [slug, setSlug] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem('wine_store_email');
+    if (saved) setIsLoggedIn(true);
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      // ランキングデータの取得
+      fetch('/api/analytics/ranking').then(res => res.json()).then(setRanking);
+      // 設定の取得
+      fetch('/api/store/config').then(res => res.json()).then(data => {
+        setStoreName(data.store_name);
+        setSlug(data.slug);
+      });
+    }
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) return ( /* ログイン画面 */ );
+
+  return (
+    <div className="max-w-6xl mx-auto p-8 space-y-8 text-black">
+      {/* 人気ランキング・インサイト */}
+      <div className="bg-[#0f172a] text-white p-10 rounded-[3rem] shadow-2xl border border-slate-800">
+        <h2 className="text-2xl font-black italic flex items-center gap-3 mb-8">
+          <BarChart3 className="text-amber-400" /> 店内人気トレンド（閲覧数）
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          <div className="space-y-4">
+            {ranking.length > 0 ? ranking.map((item: any, i) => (
+              <div key={i} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/10">
+                <span className="font-bold text-sm truncate flex-1">{i+1}. {item.name_jp}</span>
+                <span className="bg-amber-500 text-black text-[10px] font-black px-3 py-1 rounded-full ml-4">{item.view_count} views</span>
+              </div>
+            )) : <p className="text-slate-500 italic">データ収集中です...</p>}
+          </div>
+          <div className="bg-amber-500/10 p-6 rounded-[2rem] border border-amber-500/20 flex flex-col justify-center">
+            <p className="text-amber-500 font-black text-sm uppercase mb-2">Sommelier Insight</p>
+            <p className="text-slate-300 text-sm leading-relaxed font-bold">
+              {ranking.length > 0 ? 
+                `「${ranking[0].name_jp}」が最も注目されています。おすすめ料理とのペアリングを強化すると、さらに注文率が上がる可能性があります。` : 
+                "データが蓄積されると、AIが売上向上のためのアドバイスを表示します。"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 店舗設定セクション */}
+      <div className="bg-white p-10 rounded-[3rem] shadow-xl space-y-8 border border-slate-100">
+        <h2 className="text-xl font-black italic flex items-center gap-2"><Settings/> 店舗基本設定</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">店名</label>
+            <input value={storeName} onChange={e => setStoreName(e.target.value)} className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-black border-2 border-transparent focus:border-black transition-all" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">専用URLスラッグ</label>
+            <div className="flex items-center gap-2 bg-slate-50 p-5 rounded-2xl"><span className="text-slate-300">/</span><input value={slug} onChange={e => setSlug(e.target.value.toLowerCase())} className="flex-1 bg-transparent font-bold" /></div>
+          </div>
+        </div>
+        <button onClick={() => {/* 保存処理 */}} className="bg-black text-white px-10 py-5 rounded-2xl font-black flex items-center gap-2"><Save size={20}/> 設定を保存</button>
+      </div>
+
+      {/* 在庫管理セクション... */}
+    </div>
+  );
+}

@@ -1,4 +1,3 @@
-// app/api/wines/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -6,41 +5,37 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const storeId = searchParams.get('storeId') || req.headers.get('x-store-id');
-  const kv = getRequestContext().env.WINE_KV;
-  const data = await kv.get(`store:${storeId}`);
-  return NextResponse.json(data ? JSON.parse(data) : []);
+  const db = getRequestContext().env.DB;
+
+  const { results } = await db.prepare(`
+    SELECT m.*, i.price_bottle, i.price_glass, i.cost, i.stock, i.is_visible
+    FROM wines_master m
+    JOIN store_inventory i ON m.id = i.wine_id
+    WHERE i.store_id = ?
+  `).bind(storeId).all();
+
+  const formattedResults = results.map((w: any) => ({
+    ...w,
+    ...JSON.parse(w.flavor_profile || '{}')
+  }));
+
+  return NextResponse.json(formattedResults);
 }
 
 export async function POST(req: Request) {
   const storeId = req.headers.get('x-store-id');
-  const wineData = await req.json();
-  const kv = getRequestContext().env.WINE_KV;
+  const { wine_id, price_bottle, price_glass, stock, is_visible } = await req.json();
+  const db = getRequestContext().env.DB;
 
-  const currentData = await kv.get(`store:${storeId}`);
-  let wines = currentData ? JSON.parse(currentData) : [];
+  await db.prepare(`
+    INSERT INTO store_inventory (store_id, wine_id, price_bottle, price_glass, stock, is_visible)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(store_id, wine_id) DO UPDATE SET
+      price_bottle = excluded.price_bottle,
+      price_glass = excluded.price_glass,
+      stock = excluded.stock,
+      is_visible = excluded.is_visible
+  `).bind(storeId, wine_id, price_bottle, price_glass, stock, is_visible ? 1 : 0).run();
 
-  const index = wines.findIndex((w: any) => w.id === wineData.id);
-  if (index > -1) {
-    wines[index] = wineData;
-  } else {
-    wines.push({ ...wineData, id: Date.now().toString() });
-  }
-
-  await kv.put(`store:${storeId}`, JSON.stringify(wines));
-  return NextResponse.json({ success: true });
-}
-
-export async function DELETE(req: Request) {
-  const storeId = req.headers.get('x-store-id');
-  const { id } = await req.json();
-  const kv = getRequestContext().env.WINE_KV;
-
-  const currentData = await kv.get(`store:${storeId}`);
-  if (!currentData) return NextResponse.json({ success: true });
-
-  let wines = JSON.parse(currentData);
-  wines = wines.filter((w: any) => w.id !== id);
-
-  await kv.put(`store:${storeId}`, JSON.stringify(wines));
   return NextResponse.json({ success: true });
 }

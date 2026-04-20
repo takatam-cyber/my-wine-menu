@@ -39,3 +39,17 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ success: true });
 }
+// app/api/wines/route.ts
+export async function GET(req: Request) {
+  // ミドルウェアでセットされた信頼できるメールアドレスを使用
+  const storeId = req.headers.get('x-user-email'); 
+  const db = getRequestContext().env.DB;
+
+  const { results } = await db.prepare(`
+    SELECT m.*, i.price_bottle, i.price_glass, i.cost, i.stock, i.is_visible
+    FROM wines_master m
+    JOIN store_inventory i ON m.id = i.wine_id
+    WHERE i.store_id = ?
+  `).bind(storeId).all();
+  // ... 以下、パース処理 ...
+}

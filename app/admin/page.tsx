@@ -14,8 +14,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // A-AG列 (全33項目) に対応した初期状態
+  // 34項目（A列：画像ファイル名 ～ AH列：表示）に対応した初期状態
   const initialWineState = {
+    image_filename: '', // Column A
     id: '', name_jp: '', name_en: '', country: '', region: '', 
     grape: '', color: '赤', type: 'ミディアム', vintage: '', alcohol: '',
     price_bottle: '', price_glass: '', cost: '', stock: '0', ideal_stock: '',
@@ -44,7 +45,6 @@ export default function AdminPage() {
     setWines(Array.isArray(data) ? data : []);
   };
 
-  // 画像圧縮
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve) => {
       const img = new Image();
@@ -66,13 +66,14 @@ export default function AdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoading(true);
+    const originalFileName = file.name; // 元のファイル名を保持
     try {
       const compressedBlob = await compressImage(file);
       const formData = new FormData();
       formData.append('file', compressedBlob, 'wine.jpg');
       const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData });
       const { url } = await uploadRes.json();
-      setNewWine(prev => ({ ...prev, image: url }));
+      setNewWine(prev => ({ ...prev, image: url, image_filename: originalFileName }));
 
       const scanRes = await fetch('/api/scan', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify({ image: url }) });
       const scanData = await scanRes.json();
@@ -90,11 +91,11 @@ export default function AdminPage() {
     alert("保存完了");
   };
 
-  // CSV Export (A-AG 33項目)
+  // CSV Export (34項目)
   const exportCSV = () => {
-    const headers = "ID,ワイン名(日),ワイン名(英),生産国,地域,主要品種,色,タイプ,ヴィンテージ,アルコール,ボトル価格,グラス価格,原価,在庫数,適正在庫,仕入先,保管場所,AI解説,メニュー用短文,ペアリング,甘味,ボディ,酸味,渋み,香り強,複雑性,余韻,樽感,香りの特徴,タグ,飲み頃,画像URL,表示\n";
+    const headers = "画像ファイル名,ID,ワイン名(日),ワイン名(英),生産国,地域,主要品種,色,タイプ,ヴィンテージ,アルコール,ボトル価格,グラス価格,原価,在庫数,適正在庫,仕入先,保管場所,AI解説,メニュー用短文,ペアリング,甘味,ボディ,酸味,渋み,香り強,複雑性,余韻,樽感,香りの特徴,タグ,飲み頃,画像URL,表示\n";
     const csvContent = wines.map((w: any) => 
-      `${w.id},"${w.name_jp}","${w.name_en}","${w.country}","${w.region}","${w.grape}",${w.color},${w.type},${w.vintage},${w.alcohol},${w.price_bottle},${w.price_glass},${w.cost},${w.stock},${w.ideal_stock},"${w.supplier}","${w.storage}","${(w.ai_explanation||'').replace(/"/g,'""')}","${(w.menu_short||'').replace(/"/g,'""')}","${w.pairing}",${w.sweetness},${w.body},${w.acidity},${w.tannin},${w.aroma_intensity},${w.complexity},${w.aftertaste},${w.oak},"${w.aroma_features}","${w.tags}","${w.best_drinking}","${w.image}",${w.visible}`
+      `"${w.image_filename||''}",${w.id},"${w.name_jp}","${w.name_en}","${w.country}","${w.region}","${w.grape}",${w.color},${w.type},${w.vintage},${w.alcohol},${w.price_bottle},${w.price_glass},${w.cost},${w.stock},${w.ideal_stock},"${w.supplier}","${w.storage}","${(w.ai_explanation||'').replace(/"/g,'""')}","${(w.menu_short||'').replace(/"/g,'""')}","${w.pairing}",${w.sweetness},${w.body},${w.acidity},${w.tannin},${w.aroma_intensity},${w.complexity},${w.aftertaste},${w.oak},"${w.aroma_features}","${w.tags}","${w.best_drinking}","${w.image}",${w.visible}`
     ).join("\n");
     const blob = new Blob(["\uFEFF" + headers + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -103,8 +104,38 @@ export default function AdminPage() {
     link.click();
   };
 
+  const importCSV = (e: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const rows = text.split("\n").filter(l => l.trim()).slice(1);
+        const imported = rows.map(row => {
+          const c = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.replace(/^"|"$/g, '').replace(/""/g, '"'));
+          return {
+            image_filename: c[0], id: c[1] || Date.now().toString(), name_jp: c[2], name_en: c[3], country: c[4], region: c[5],
+            grape: c[6], color: c[7], type: c[8], vintage: c[9], alcohol: c[10],
+            price_bottle: c[11], price_glass: c[12], cost: c[13], stock: c[14], ideal_stock: c[15],
+            supplier: c[16], storage: c[17], ai_explanation: c[18], menu_short: c[19], pairing: c[20],
+            sweetness: c[21], body: c[22], acidity: c[23], tannin: c[24], aroma_intensity: c[25],
+            complexity: c[26], aftertaste: c[27], oak: c[28], aroma_features: c[29], tags: c[30],
+            best_drinking: c[31], image: c[32], visible: c[33] || 'ON'
+          };
+        });
+        if (confirm(`${imported.length}件を一括インポートしますか？`)) {
+          setLoading(true);
+          await fetch('/api/wines/bulk', { method: 'POST', headers: { 'x-store-id': auth.email }, body: JSON.stringify(imported) });
+          fetchWines();
+          alert("インポート完了");
+        }
+      } catch (err) { alert("CSVエラー"); } finally { setLoading(false); }
+    };
+    reader.readAsText(file);
+  };
+
   if (!isLoggedIn) return (
-    /* ... ログイン画面は既存を維持 ... */
     <div className="min-h-screen flex items-center justify-center bg-black p-6">
       <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-sm shadow-2xl">
         <h1 className="text-3xl font-black mb-8 text-center uppercase tracking-tighter">Admin Login</h1>
@@ -117,7 +148,6 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8 bg-slate-50 min-h-screen text-black font-sans pb-24">
-      {/* 上部ステータスバー */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
         <div className="flex items-center gap-3">
           <div className="bg-black text-white p-2 rounded-xl"><WineIcon size={24}/></div>
@@ -137,7 +167,7 @@ export default function AdminPage() {
       <div className="flex gap-2 mb-8">
         <button onClick={exportCSV} className="flex-1 bg-white border-2 border-slate-200 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 active:scale-95"><Download size={16}/> CSV出力</button>
         <label className="flex-1 bg-white border-2 border-slate-200 py-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95">
-          <Upload size={16}/> CSV取込<input type="file" accept=".csv" className="hidden" />
+          <Upload size={16}/> CSV取込<input type="file" accept=".csv" onChange={importCSV} className="hidden" />
         </label>
       </div>
 
@@ -145,21 +175,19 @@ export default function AdminPage() {
         <h2 className="text-xl font-black flex items-center gap-2 border-b pb-4"><Edit3 size={20}/> ワイン詳細情報の登録</h2>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* 左：写真・基本情報 */}
           <div className="space-y-6">
             <label className="aspect-[3/4] bg-slate-50 rounded-[2.5rem] overflow-hidden flex flex-col items-center justify-center relative cursor-pointer border-4 border-dashed border-slate-100 group">
               {newWine.image ? <img src={newWine.image} className="w-full h-full object-cover" /> : <div className="text-center"><Camera size={48} className="mx-auto text-slate-200 mb-2"/><p className="text-[10px] font-black text-slate-300 uppercase">ラベル写真を撮影</p></div>}
               {loading && <div className="absolute inset-0 bg-black/60 flex items-center justify-center"><Loader2 className="text-white animate-spin" size={48} /></div>}
-              {/* capture="environment" でスマホの背面カメラを優先起動 */}
               <input type="file" accept="image/*" capture="environment" onChange={handleScan} className="hidden" />
             </label>
             <div className="space-y-3">
+              <div className="relative"><span className="absolute top-1 left-4 text-[8px] text-slate-400 font-bold uppercase">Image Filename</span><input type="text" placeholder="画像ファイル名" value={newWine.image_filename} onChange={e => setNewWine({...newWine, image_filename: e.target.value})} className="w-full pt-5 pb-2 px-4 bg-slate-50 rounded-2xl border-2 font-bold" /></div>
               <input type="text" placeholder="ワイン名 (日本語)" value={newWine.name_jp} onChange={e => setNewWine({...newWine, name_jp: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2 font-bold focus:border-black outline-none" />
               <input type="text" placeholder="Wine Name (English)" value={newWine.name_en} onChange={e => setNewWine({...newWine, name_en: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2 font-bold focus:border-black outline-none" />
             </div>
           </div>
 
-          {/* 右：詳細スペック */}
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-3">
               <select value={newWine.color} onChange={e => setNewWine({...newWine, color: e.target.value})} className="p-4 bg-slate-100 rounded-2xl font-black"><option value="赤">赤</option><option value="白">白</option><option value="ロゼ">ロゼ</option><option value="泡">泡</option></select>
@@ -183,13 +211,13 @@ export default function AdminPage() {
               <div className="relative"><span className="absolute top-1 left-4 text-[8px] text-green-600 font-bold">適正数</span><input type="number" value={newWine.ideal_stock} onChange={e => setNewWine({...newWine, ideal_stock: e.target.value})} className="w-full pt-5 pb-2 px-4 bg-green-50 rounded-2xl font-black" /></div>
             </div>
             <input type="text" placeholder="仕入先" value={newWine.supplier} onChange={e => setNewWine({...newWine, supplier: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2" />
+            <input type="text" placeholder="保管場所" value={newWine.storage} onChange={e => setNewWine({...newWine, storage: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2" />
           </div>
         </div>
 
-        {/* 味わい 3x3 グリッド */}
         <div className="bg-slate-50 p-6 md:p-8 rounded-[2.5rem] space-y-6">
-          <p className="text-[10px] font-black text-slate-400 uppercase text-center tracking-widest">Tasting Profile (1-5)</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <p className="text-[10px] font-black text-slate-400 uppercase text-center tracking-widest">Tasting Profile (0-5)</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <FlavorDot label="甘味" val={newWine.sweetness} set={(v:any)=>setNewWine({...newWine, sweetness:v})}/>
             <FlavorDot label="ボディ" val={newWine.body} set={(v:any)=>setNewWine({...newWine, body:v})}/>
             <FlavorDot label="酸味" val={newWine.acidity} set={(v:any)=>setNewWine({...newWine, acidity:v})}/>
@@ -206,6 +234,10 @@ export default function AdminPage() {
           <textarea placeholder="AI解説 (ソムリエ解説用)" value={newWine.ai_explanation} onChange={e => setNewWine({...newWine, ai_explanation: e.target.value})} className="w-full p-5 bg-slate-50 rounded-[2rem] border-2 h-32" />
           <input type="text" placeholder="メニュー用短文 (客用メニューに大きく表示)" value={newWine.menu_short} onChange={e => setNewWine({...newWine, menu_short: e.target.value})} className="w-full p-4 bg-amber-50 rounded-2xl border-2 border-amber-100 font-bold" />
           <input type="text" placeholder="ペアリング料理" value={newWine.pairing} onChange={e => setNewWine({...newWine, pairing: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2" />
+          <div className="grid grid-cols-2 gap-4">
+             <input type="text" placeholder="タグ (カンマ区切り)" value={newWine.tags} onChange={e => setNewWine({...newWine, tags: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2" />
+             <input type="text" placeholder="飲み頃" value={newWine.best_drinking} onChange={e => setNewWine({...newWine, best_drinking: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-2" />
+          </div>
         </div>
 
         <button onClick={handleSaveWine} className="w-full bg-black text-white py-7 rounded-[2.5rem] font-black text-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
@@ -234,11 +266,18 @@ export default function AdminPage() {
 
 function FlavorDot({ label, val, set }: any) {
   return (
-    <div className="space-y-1.5 flex-1">
+    <div className="space-y-1.5 flex-1 min-w-[120px]">
       <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter block ml-1">{label}</span>
-      <div className="flex gap-1">
+      <div className="flex gap-1 items-center">
+        {/* 0ボタンの追加 */}
+        <button 
+          onClick={() => set("0")} 
+          className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center transition-all ${val === "0" ? 'bg-slate-800 text-white' : 'bg-white border-2 text-slate-300'}`}
+        >
+          0
+        </button>
         {[1,2,3,4,5].map(v => (
-          <button key={v} onClick={() => set(v.toString())} className={`h-6 flex-1 rounded-full transition-all ${parseInt(val) >= v ? 'bg-[#2f5d3a]' : 'bg-white border-2'}`}></button>
+          <button key={v} onClick={() => set(v.toString())} className={`h-6 flex-1 rounded-full transition-all ${parseInt(val) >= v && val !== "0" ? 'bg-[#2f5d3a]' : 'bg-white border-2'}`}></button>
         ))}
       </div>
     </div>

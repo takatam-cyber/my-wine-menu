@@ -258,3 +258,69 @@ export default function StoreMenu() {
     </main>
   );
 }
+"use client";
+export const runtime = 'edge';
+
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { useParams } from 'next/navigation';
+import { Sparkles, X, Send, Loader2, ChevronRight, Utensils, GlassWater, Wine as WineIcon } from 'lucide-react';
+
+export default function StoreMenu() {
+  const params = useParams();
+  const slug = params?.slug as string;
+  
+  const [wines, setWines] = useState([]);
+  const [config, setConfig] = useState({ store_name: '' });
+  const [selectedWine, setSelectedWine] = useState<any>(null);
+
+  useEffect(() => {
+    if (slug) {
+      fetch(`/api/wines?slug=${slug}`).then(res => res.json()).then(setWines);
+      fetch(`/api/store/config/public?slug=${slug}`).then(res => res.json()).then(setConfig);
+    }
+  }, [slug]);
+
+  // ★ 閲覧ログを送信する関数
+  const trackView = async (wineId: string) => {
+    fetch('/api/analytics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wine_id: wineId, store_slug: slug })
+    });
+  };
+
+  const filteredWines = useMemo(() => {
+    return wines.filter((w: any) => (w.is_visible === 1 || w.visible === 'ON') && w.name_jp);
+  }, [wines]);
+
+  return (
+    <main className="min-h-screen bg-slate-50 pb-32 text-black">
+      <header className="py-12 px-8 text-center bg-white border-b-2 border-slate-100">
+        <h1 className="text-3xl font-bold tracking-tighter uppercase italic">{config.store_name || 'WINE MENU'}</h1>
+      </header>
+
+      <div className="max-w-xl mx-auto px-6 space-y-12 mt-10">
+        {filteredWines.map((wine: any) => (
+          <div 
+            key={wine.id} 
+            onClick={() => {
+              setSelectedWine(wine);
+              trackView(wine.id); // ★ クリック時に統計を送信
+            }} 
+            className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl border border-slate-100 cursor-pointer active:scale-95 transition-all"
+          >
+            <div className="relative aspect-[4/3]">
+              <img src={wine.image_url || wine.image} className="w-full h-full object-cover" />
+              <div className="absolute bottom-6 left-8 right-8 text-white text-left">
+                <p className="text-[10px] font-bold uppercase text-amber-400 mb-1">{wine.country} / {wine.vintage}</p>
+                <h2 className="text-2xl font-bold">{wine.name_jp}</h2>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* 詳細モーダル等は以前のまま */}
+    </main>
+  );
+}

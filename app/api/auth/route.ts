@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     // 【重要】インポーター（あなた）専用の固定ログイン情報
     // ひとまずこれでログインできるようにします
-    if (email === "importer@example.com" && password === "winepro2026") {
+    if (email === "takatam@pieroth.jp" && password === "19770912") {
       const token = await signJWT({ email });
       const response = NextResponse.json({ success: true });
       

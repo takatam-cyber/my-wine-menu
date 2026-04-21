@@ -16,6 +16,7 @@ export default function MasterAdmin() {
     if (!file) return;
     setUploading(true);
     setStatus('idle');
+    setErrorMessage('');
 
     const formData = new FormData();
     formData.append('file', file);
@@ -23,22 +24,21 @@ export default function MasterAdmin() {
     try {
       const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
       const result = await res.json();
+      
       if (res.ok) {
         setStatus('success');
         setCount(result.count);
       } else {
-        throw new Error(result.error || "アップロードに失敗しました");
+        // サーバーから返ってきた具体的なエラーをセットする
+        setErrorMessage(result.error || "データの取り込み中にエラーが発生しました。");
+        setStatus('error');
       }
     } catch (e: any) {
+      setErrorMessage("通信エラーが発生しました: " + e.message);
       setStatus('error');
-      setErrorMessage(e.message);
     } finally {
       setUploading(false);
     }
-  };
-
-  const handleExport = async () => {
-    window.location.href = '/api/master/export';
   };
 
   return (
@@ -48,7 +48,7 @@ export default function MasterAdmin() {
           <button onClick={() => router.push('/admin')} className="flex items-center gap-2 text-slate-400 font-bold hover:text-slate-600 transition-colors">
             <ArrowLeft size={20}/> Back to Menu
           </button>
-          <button onClick={handleExport} className="flex items-center gap-2 text-amber-600 font-bold hover:text-amber-700 transition-colors bg-amber-50 px-4 py-2 rounded-full text-sm">
+          <button onClick={() => window.location.href = '/api/master/export'} className="flex items-center gap-2 text-amber-600 font-bold hover:text-amber-700 transition-colors bg-amber-50 px-4 py-2 rounded-full text-sm">
             <Download size={16}/> 現在のマスターを出力
           </button>
         </div>
@@ -60,7 +60,7 @@ export default function MasterAdmin() {
             </div>
             <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight">Master Data</h1>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">CSV Bulk Import/Export</p>
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">CSV Bulk Import</p>
             </div>
           </div>
 
@@ -69,7 +69,7 @@ export default function MasterAdmin() {
               <Upload className="mx-auto text-slate-300" size={48}/>
               <div className="space-y-1">
                 <p className="text-lg font-bold text-slate-600">{file ? file.name : "ワインリストCSVを選択"}</p>
-                <p className="text-xs text-slate-400">Geminiで生成した最新のCSVをここにドロップ</p>
+                <p className="text-xs text-slate-400">Geminiで作成したCSVをそのままアップロードしてください</p>
               </div>
               <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv-upload" />
               <label htmlFor="csv-upload" className="inline-block px-8 py-3 bg-white border-2 border-slate-200 rounded-full font-black text-xs cursor-pointer hover:bg-slate-900 hover:text-white transition-all shadow-sm">
@@ -81,7 +81,7 @@ export default function MasterAdmin() {
               onClick={handleUpload} disabled={!file || uploading}
               className="w-full py-6 bg-amber-500 text-black rounded-[1.5rem] font-black text-lg shadow-xl shadow-amber-500/20 hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
             >
-              {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを一括更新する"}
+              {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを一括登録する"}
             </button>
 
             {status === 'success' && (
@@ -94,7 +94,7 @@ export default function MasterAdmin() {
                 <div className="flex items-center gap-3">
                   <AlertCircle/> 更新に失敗しました
                 </div>
-                <p className="text-xs font-normal ml-8">{errorMessage}</p>
+                <p className="text-xs font-normal ml-8">詳細: {errorMessage}</p>
               </div>
             )}
           </div>

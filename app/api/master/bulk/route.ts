@@ -10,21 +10,17 @@ export async function POST(req: Request) {
 
     const text = await file.text();
     const rows = text.split(/\r?\n/).filter(line => line.trim());
-    if (rows.length < 2) throw new Error("CSVデータが空か、正しくありません。");
+    if (rows.length < 2) throw new Error("CSVデータが不足しています。");
 
-    // 【重要】ヘッダーの完全クレンジング：や引用符を徹底除去
-    const rawHeaders = rows[0].split(',');
-    const headers = rawHeaders.map(h => 
-      h.trim()
-       .replace(/^"|"$/g, '')
-       .replace(/^\\s*/, '') // などの除去
+    // ヘッダーの取得とクレンジング
+    const headers = rows[0].split(',').map(h => 
+      h.trim().replace(/^"|"$/g, '').replace(/^\\s*/, '')
     );
     
     const db = getRequestContext().env.DB;
     const batch = [];
 
     for (let i = 1; i < rows.length; i++) {
-      // 引用符内のカンマに対応した高度な分割
       const values: string[] = [];
       let current = "";
       let inQuotes = false;
@@ -51,14 +47,16 @@ export async function POST(req: Request) {
           INSERT INTO wines_master (
             id, name_jp, name_en, country, region, grape, color, type, vintage, 
             alcohol, ai_explanation, menu_short, pairing, aroma_features, tags, 
-            image_url, is_priority,
-            sweetness, body, acidity, tannins, aroma_intensity, complexity, finish, oak
+            image_url, is_priority, sweetness, body, acidity, tannins, 
+            aroma_intensity, complexity, finish, oak
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             name_jp=excluded.name_jp, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
             pairing=excluded.pairing, sweetness=excluded.sweetness, body=excluded.body,
-            acidity=excluded.acidity, tannins=excluded.tannins
+            acidity=excluded.acidity, tannins=excluded.tannins, 
+            aroma_intensity=excluded.aroma_intensity, complexity=excluded.complexity,
+            finish=excluded.finish, oak=excluded.oak
         `).bind(
           data['ID'], data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
           data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
@@ -72,12 +70,12 @@ export async function POST(req: Request) {
       );
     }
 
-    if (batch.length === 0) throw new Error("有効なデータ行が見つかりませんでした。ID列を確認してください。");
+    if (batch.length === 0) throw new Error("有効なデータ行が見つかりませんでした。");
 
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {
-    console.error(e);
+    console.error("Bulk error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

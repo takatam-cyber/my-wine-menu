@@ -9,10 +9,11 @@ export async function POST(req: Request) {
     if (!file) throw new Error("ファイルが見つかりません。");
 
     const text = await file.text();
+    // 改行コードの差異を吸収して行分割
     const rows = text.split(/\r?\n/).filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVデータが不足しています。");
 
-    // ヘッダーの取得とクレンジング
+    // ヘッダーのクレンジング（Geminiが付与する などを除去）
     const headers = rows[0].split(',').map(h => 
       h.trim().replace(/^"|"$/g, '').replace(/^\\s*/, '')
     );
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
     const batch = [];
 
     for (let i = 1; i < rows.length; i++) {
+      // 引用符内のカンマに対応した高度なCSVパース
       const values: string[] = [];
       let current = "";
       let inQuotes = false;
@@ -40,7 +42,11 @@ export async function POST(req: Request) {
 
       if (!data['ID']) continue;
 
+      // 自社輸入品（ピーロート）の判定
       const isPriority = data['仕入先']?.includes('ピーロート') ? 1 : 0;
+
+      // 数値データへの変換（REAL型として保存するため）
+      const getNum = (key: string) => parseFloat(data[key] || "0");
 
       batch.push(
         db.prepare(`
@@ -62,20 +68,19 @@ export async function POST(req: Request) {
           data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
           data['アルコール'], data['AI解説'], data['メニュー用短文'], data['ペアリング'],
           data['香りの特徴'], data['タグ'], data['画像URL'], isPriority,
-          parseFloat(data['甘味'] || "0"), parseFloat(data['ボディ'] || "0"),
-          parseFloat(data['酸味'] || "0"), parseFloat(data['渋み'] || "0"),
-          parseFloat(data['香り強'] || "0"), parseFloat(data['複雑性'] || "0"),
-          parseFloat(data['余韻'] || "0"), parseFloat(data['樽感'] || "0")
+          getNum('甘味'), getNum('ボディ'), getNum('酸味'), getNum('渋み'),
+          getNum('香り強'), getNum('複雑性'), getNum('余韻'), getNum('樽感')
         )
       );
     }
 
-    if (batch.length === 0) throw new Error("有効なデータ行が見つかりませんでした。");
+    if (batch.length === 0) throw new Error("有効なデータが見つかりませんでした。");
 
+    // D1のバッチ処理で一括実行
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {
-    console.error("Bulk error:", e);
+    console.error("Bulk Import Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

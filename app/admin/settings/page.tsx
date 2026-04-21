@@ -1,4 +1,5 @@
 "use client";
+export const runtime = 'edge';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -42,32 +43,32 @@ export default function StoreSettings() {
             <div className="p-4 bg-amber-500 rounded-3xl text-white shadow-lg"><Store size={32}/></div>
             <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight">Store Setup</h1>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">最初の店舗を登録してください</p>
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">店舗を登録してください</p>
             </div>
           </div>
 
           <form onSubmit={handleSave} className="space-y-6">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">Store Name</label>
-              <input type="text" required placeholder="例：ピーロート日比谷店" className="w-full p-5 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 focus:bg-white text-slate-900 font-bold outline-none" value={name} onChange={e => setName(e.target.value)} />
+              <input type="text" required placeholder="例：ピーロート日比谷店" className="w-full p-5 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 focus:bg-white text-slate-900 font-bold outline-none shadow-sm" value={name} onChange={e => setName(e.target.value)} />
             </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 ml-4 uppercase tracking-widest">URL Slug</label>
               <div className="relative">
                 <Globe className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                <input type="text" required placeholder="例：pieroth-hibiya" className="w-full p-5 pl-14 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 focus:bg-white text-slate-900 font-bold outline-none" value={slug} onChange={e => setSlug(e.target.value)} />
+                <input type="text" required placeholder="例：pieroth-hibiya" className="w-full p-5 pl-14 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 focus:bg-white text-slate-900 font-bold outline-none shadow-sm" value={slug} onChange={e => setSlug(e.target.value)} />
               </div>
               <p className="text-[10px] text-slate-400 ml-4">※英数字とハイフンのみ。これがURLになります。</p>
             </div>
 
             <button type="submit" disabled={loading} className="w-full py-6 bg-slate-900 text-white rounded-[1.5rem] font-black text-lg shadow-xl hover:bg-black transition-all disabled:opacity-50 flex items-center justify-center gap-3">
-              {loading ? <Loader2 className="animate-spin" /> : "この内容で登録する"}
+              {loading ? <Loader2 className="animate-spin" /> : "この内容で登録・保存する"}
             </button>
 
             {status && (
-              <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-3 font-bold animate-bounce">
-                <CheckCircle2/> 登録完了！ URL: `/{slug}` を確認してください
+              <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-3 font-bold border border-emerald-100">
+                <CheckCircle2/> 保存完了！ 公開リンクを確認してください
               </div>
             )}
           </form>

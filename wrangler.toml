@@ -1,5 +1,20 @@
-# 修正後の wrangler.toml
 name = "my-wine-menu"
 pages_build_output_dir = ".vercel/output/static"
 compatibility_date = "2024-12-16"
 compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "wine-db"
+database_id = "122a24d3-d9a1-42c8-944a-2b046270bb19" # 新しいIDに書き換えました
+
+[[kv_namespaces]]
+binding = "WINE_KV"
+id = "6ee572fea3e74a3d92d3a43b1b062e44"
+
+[[r2_buckets]]
+binding = "WINE_IMAGES"
+bucket_name = "wine-pro-storage"
+
+[ai]
+binding = "AI"

@@ -3,6 +3,12 @@ pages_build_output_dir = ".vercel/output/static"
 compatibility_date = "2024-12-16"
 compatibility_flags = ["nodejs_compat"]
 
+# データベース(D1)の設定を追加
+[[d1_databases]]
+binding = "DB" # コード内で env.DB として参照される名前
+database_name = "wine-menu-db"
+database_id = "xxxx-xxxx-xxxx" # 本番環境のIDに書き換えてください
+
 [[kv_namespaces]]
 binding = "WINE_KV"
 id = "6ee572fea3e74a3d92d3a43b1b062e44"

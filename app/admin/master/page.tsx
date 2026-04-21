@@ -1,65 +1,87 @@
 "use client";
+
 import { useState } from 'react';
-import { Upload, Database, CheckCircle, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function MasterAdmin() {
-  const [loading, setLoading] = useState(false);
-  const [count, setCount] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const router = useRouter();
 
-  const importCSV = (e: any) => {
-    const file = e.target.files?.[0];
+  const handleUpload = async () => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      setLoading(true);
-      try {
-        const text = event.target?.result as string;
-        const rows = text.split(/\r?\n/).filter(l => l.trim().length > 0).slice(1);
-        const imported = rows.map(row => {
-          const c = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(s => s.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-          return {
-            id: c[1], name_jp: c[2], name_en: c[3], country: c[4], region: c[5], grape: c[6],
-            color: c[7], type: c[8], vintage: c[9], alcohol: c[10], ai_explanation: c[18],
-            menu_short: c[19], pairing: c[20], sweetness: c[21], body: c[22], acidity: c[23],
-            tannin: c[24], aroma_intensity: c[25], complexity: c[26], aftertaste: c[27], oak: c[28],
-            aroma_features: c[29], tags: c[30], best_drinking: c[31], image_url: c[32]
-          };
-        });
+    setUploading(true);
+    setStatus('idle');
 
-        const res = await fetch('/api/master/bulk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(imported)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setCount(data.count);
-          alert("マスターデータを更新しました！");
-        }
-      } catch (err) { alert("エラーが発生しました"); } finally { setLoading(false); }
-    };
-    reader.readAsText(file);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
+      if (res.ok) setStatus('success');
+      else setStatus('error');
+    } catch (e) {
+      setStatus('error');
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col items-center justify-center p-8">
-      <div className="bg-zinc-900 p-12 rounded-[3rem] border border-zinc-800 text-center space-y-8 shadow-2xl max-w-md w-full">
-        <Database size={64} className="mx-auto text-amber-500" />
-        <h1 className="text-3xl font-black italic tracking-tighter">MASTER IMPORT</h1>
-        <p className="text-zinc-400 font-bold text-sm">Gemini 3で作成した最新CSVを反映します</p>
-        
-        <label className="block w-full bg-white text-black py-6 rounded-2xl font-black text-xl cursor-pointer hover:bg-zinc-200 transition-all active:scale-95">
-          {loading ? "更新中..." : "CSVを選択して更新"}
-          <input type="file" accept=".csv" onChange={importCSV} className="hidden" />
-        </label>
+    <div className="min-h-screen bg-slate-50 p-8 font-sans">
+      <div className="max-w-2xl mx-auto space-y-8">
+        <button onClick={() => router.push('/admin')} className="flex items-center gap-2 text-slate-400 font-bold hover:text-slate-600 transition-colors">
+          <ArrowLeft size={20}/> Back to Menu
+        </button>
 
-        {count > 0 && (
-          <div className="flex items-center justify-center gap-2 text-green-500 font-bold">
-            <CheckCircle size={20} /> {count} 件のデータを同期しました
+        <div className="bg-white rounded-[3rem] p-12 shadow-xl border border-slate-100">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-4 bg-amber-500 rounded-3xl text-white shadow-lg">
+              <Database size={32}/>
+            </div>
+            <div>
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Master Data</h1>
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">CSV Bulk Import</p>
+            </div>
           </div>
-        )}
-        <a href="/admin" className="text-zinc-500 flex items-center justify-center gap-2 text-sm pt-4"><ArrowLeft size={16}/> 戻る</a>
+
+          <div className="space-y-6">
+            <div className="border-4 border-dashed border-slate-100 rounded-[2rem] p-12 text-center space-y-4 hover:border-amber-200 transition-colors bg-slate-50/50">
+              <Upload className="mx-auto text-slate-300" size={48}/>
+              <div className="space-y-1">
+                <p className="text-lg font-bold text-slate-600">{file ? file.name : "ワインリストCSVを選択"}</p>
+                <p className="text-xs text-slate-400">Gemini 3で生成したCSVファイルをアップロードしてください</p>
+              </div>
+              <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv-upload" />
+              <label htmlFor="csv-upload" className="inline-block px-8 py-3 bg-white border-2 border-slate-200 rounded-full font-black text-xs cursor-pointer hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                ファイルを選択
+              </label>
+            </div>
+
+            <button 
+              onClick={handleUpload} disabled={!file || uploading}
+              className="w-full py-6 bg-amber-500 text-black rounded-[1.5rem] font-black text-lg shadow-xl shadow-amber-500/20 hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+            >
+              {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを更新する"}
+            </button>
+
+            {status === 'success' && (
+              <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-3 font-bold border border-emerald-100 animate-in fade-in slide-in-from-top-4">
+                <CheckCircle2/> データの更新が完了しました！
+              </div>
+            )}
+            {status === 'error' && (
+              <div className="p-6 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 font-bold border border-red-100">
+                <AlertCircle/> 更新に失敗しました。CSVの形式を確認してください。
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+// ここでも runtime = 'edge' は削除しました。

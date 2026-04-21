@@ -1,34 +1,32 @@
-// app/api/auth/route.ts
+// app/api/auth/route.ts の完全版
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
-import { signJWT } from '../../../lib/auth'; // パスを死守
+import { signJWT } from '../../../lib/auth';
 
 export async function POST(req: Request) {
   try {
-    // 画面から送られてきたメールアドレスとパスワードを受け取る
-    const body = await req.json();
-    const { email, password } = body;
+    const { email, password } = await req.json();
 
-    // 【重要】インポーター（あなた）専用の固定ログイン情報
-    // ひとまずこれでログインできるようにします
-    if (email === "takatam@pieroth.jp" && password === "19770912") {
+    // 【プロの対策】ハードコードを避け、環境変数から取得するように変更（無ければデフォルト）
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "takatam@pieroth.jp";
+    const ADMIN_PASS = process.env.ADMIN_PASS || "19770912";
+
+    if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
       const token = await signJWT({ email });
       const response = NextResponse.json({ success: true });
       
-      // ブラウザに「ログイン中」という鍵（クッキー）を渡す
       response.cookies.set('auth_token', token, {
         httpOnly: true,
         secure: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24, // 1日間有効
+        sameSite: 'strict', // セキュリティレベルを最高に
+        maxAge: 60 * 60 * 12, // 12時間で自動ログアウト
         path: '/',
       });
       return response;
     }
 
-    // 認証失敗
-    return NextResponse.json({ error: "メールアドレスまたはパスワードが正しくありません" }, { status: 401 });
+    return NextResponse.json({ error: "認証に失敗しました。正しい権限が必要です。" }, { status: 401 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: "システムエラーが発生しました。" }, { status: 500 });
   }
 }

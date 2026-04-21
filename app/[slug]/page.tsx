@@ -17,8 +17,8 @@ interface Wine {
   ai_explanation: string;
   image_url: string;
   pairing?: string;
-  is_priority?: boolean; // 自社輸入品フラグ
-  shipper?: string;      // 仕入先
+  is_priority?: boolean;
+  shipper?: string;
   visible?: string;
   is_visible?: number;
   tags?: string;
@@ -35,31 +35,26 @@ export default function StoreMenu() {
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. データ取得
   useEffect(() => {
     if (slug) {
-      // ワインリスト取得
       fetch(`/api/wines?slug=${slug}`)
         .then(res => res.json())
         .then(data => {
-          // インポーター主導権ロジック：特定の仕入先をプライオリティ化
           const processed = data.map((w: any) => ({
             ...w,
-            // 「ピーロート」等の自社名が含まれる場合、またはフラグがある場合に優先
             is_priority: w.shipper?.includes('ピーロート') || w.is_priority === 1
           }));
           setWines(processed);
         })
         .catch(err => console.error("Fetch error:", err));
 
-      // 店舗設定取得
       fetch(`/api/store/config/public?slug=${slug}`)
         .then(res => res.json())
-        .then(setConfig);
+        .then(setConfig)
+        .catch(() => {});
     }
   }, [slug]);
 
-  // チャット自動スクロール
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, isTyping]);
@@ -88,20 +83,18 @@ export default function StoreMenu() {
       const data = await res.json();
       setHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
     } catch (e) {
-      setHistory(prev => [...prev, { role: 'assistant', content: "申し訳ありません。少し考えがまとまりませんでした。" }]);
+      setHistory(prev => [...prev, { role: 'assistant', content: "申し訳ありません。エラーが発生しました。" }]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  // 表示フィルタリング（ONのものだけ）
   const filteredWines = useMemo(() => {
     return wines.filter((w) => w.visible === 'ON' || w.is_visible === 1);
   }, [wines]);
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] pb-32 text-slate-900 font-sans tracking-tight">
-      {/* サービスマン視点の極上ヘッダー */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-6 py-8 text-center">
         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Exclusive Wine Selection</p>
         <h1 className="text-2xl font-black italic uppercase tracking-tighter text-slate-900">
@@ -118,7 +111,6 @@ export default function StoreMenu() {
               wine.is_priority ? 'border-amber-400 shadow-amber-100 shadow-2xl' : 'border-transparent shadow-xl'
             }`}
           >
-            {/* インポーターの「押し」バッジ */}
             {wine.is_priority && (
               <div className="absolute top-5 left-5 z-20 bg-amber-400 text-black text-[10px] font-black px-4 py-1.5 rounded-full flex items-center gap-1 shadow-lg">
                 <Star size={12} fill="currentColor" /> SPECIAL SELECTION
@@ -138,7 +130,6 @@ export default function StoreMenu() {
                   <span className="text-[10px] font-bold bg-white/20 backdrop-blur-md px-2 py-0.5 rounded uppercase tracking-widest text-amber-300">
                     {wine.country}
                   </span>
-                  {wine.tags && <span className="text-[10px] font-medium text-slate-300">#{wine.tags.split(',')[0]}</span>}
                 </div>
                 <h2 className="text-2xl font-black leading-tight mb-2 group-hover:text-amber-400 transition-colors">
                   {wine.name_jp}
@@ -163,85 +154,105 @@ export default function StoreMenu() {
         ))}
       </div>
 
-      {/* AI Sommelier Button - アニメーションを強化 */}
       <button 
         onClick={() => setChatOpen(true)} 
         className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-12 py-6 rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex items-center gap-4 border-2 border-amber-500/50 z-50 hover:bg-black hover:scale-105 active:scale-95 transition-all group"
       >
-        <div className="relative">
-          <Sparkles className="text-amber-400 group-hover:rotate-12 transition-transform" />
-          <span className="absolute -top-1 -right-1 flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-          </span>
-        </div>
+        <Sparkles className="text-amber-400" />
         <span className="font-black uppercase tracking-[0.2em] text-sm">AI Sommelier</span>
       </button>
 
-      {/* 詳細モーダル */}
       {selectedWine && (
         <div className="fixed inset-0 z-[70] bg-slate-900/40 backdrop-blur-md flex items-end animate-in slide-in-from-bottom duration-500">
           <div className="bg-white w-full max-h-[95vh] rounded-t-[3.5rem] overflow-y-auto pb-16 shadow-2xl relative">
             <div className="sticky top-0 right-0 p-6 flex justify-end z-20 pointer-events-none">
-              <button 
-                onClick={() => setSelectedWine(null)} 
-                className="p-4 bg-white/90 backdrop-blur shadow-xl rounded-full pointer-events-auto border border-slate-100 active:scale-90 transition-all"
-              >
+              <button onClick={() => setSelectedWine(null)} className="p-4 bg-white/90 backdrop-blur shadow-xl rounded-full pointer-events-auto border border-slate-100 active:scale-90 transition-all">
                 <X size={24} className="text-slate-900"/>
               </button>
             </div>
-            
             <div className="px-8 -mt-6">
               <div className="relative w-full aspect-square mb-8">
-                <img 
-                  src={selectedWine.image_url} 
-                  className="w-full h-full object-contain mix-blend-multiply drop-shadow-2xl" 
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent"></div>
+                <img src={selectedWine.image_url} className="w-full h-full object-contain mix-blend-multiply drop-shadow-2xl" />
               </div>
-              
               <div className="space-y-8">
                 <div>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold uppercase tracking-widest">{selectedWine.country}</span>
-                    <span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold uppercase tracking-widest">{selectedWine.region}</span>
-                  </div>
                   <h2 className="text-4xl font-black text-slate-900 leading-tight mb-2">{selectedWine.name_jp}</h2>
                   <p className="text-slate-400 font-bold italic tracking-wider">{selectedWine.name_en}</p>
                 </div>
-
-                <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 relative">
-                   <Info className="absolute top-6 right-6 text-slate-200" size={40} />
-                   <p className="text-lg text-slate-700 leading-relaxed font-medium">
-                     {selectedWine.ai_explanation}
-                   </p>
+                <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                   <p className="text-lg text-slate-700 leading-relaxed font-medium">{selectedWine.ai_explanation}</p>
                 </div>
-
                 {selectedWine.pairing && (
                   <div className="bg-emerald-50 p-8 rounded-[2rem] text-emerald-900 border border-emerald-100">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Utensils className="text-emerald-500" />
-                      <span className="text-xs font-black uppercase tracking-widest">Recommended Pairing</span>
-                    </div>
-                    <p className="text-xl font-bold">{selectedWine.pairing}</p>
+                    <p className="text-xl font-bold font-black mb-2 flex items-center gap-2"><Utensils size={20}/> Best Pairing</p>
+                    <p className="text-lg font-bold">{selectedWine.pairing}</p>
                   </div>
                 )}
-
-                <button 
-                  onClick={() => { setChatOpen(true); setSelectedWine(null); }}
-                  className="w-full py-6 bg-slate-100 rounded-2xl font-black text-slate-600 flex items-center justify-center gap-3 hover:bg-slate-200 transition-colors"
-                >
-                  <Sparkles size={20} className="text-amber-500" /> このワインについてAIに詳しく聞く
-                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* チャットモーダル */}
       {chatOpen && (
         <div className="fixed inset-0 bg-white z-[80] flex flex-col animate-in slide-in-from-bottom duration-500">
           <header className="px-8 py-8 border-b flex justify-between items-center bg-white sticky top-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10
+              <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center">
+                <Sparkles size={20} className="text-amber-400"/>
+              </div>
+              <div>
+                <h2 className="font-black text-lg leading-none uppercase">AI SOMMELIER</h2>
+              </div>
+            </div>
+            <button onClick={() => setChatOpen(false)} className="p-2 bg-slate-100 rounded-full">
+              <X size={24} className="text-slate-400"/>
+            </button>
+          </header>
+
+          <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-[#FDFDFD]">
+            {history.map((h, i) => (
+              <div key={i} className={`flex ${h.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[90%] p-6 rounded-[2rem] ${h.role === 'user' ? 'bg-slate-900 text-white rounded-tr-none shadow-xl' : 'bg-white text-slate-900 shadow-lg border border-slate-100 rounded-tl-none'}`}>
+                  {h.role === 'assistant' ? (
+                    <div className="space-y-6">
+                      <p className="text-lg font-bold leading-relaxed whitespace-pre-wrap">{h.content.replace(/【ID:(\d+)】/g, '').trim()}</p>
+                      <div className="grid gap-3">
+                        {Array.from(h.content.matchAll(/【ID:(\d+)】/g)).map(match => {
+                          const wine = wines.find(w => w.id === match[1]);
+                          return wine && (
+                            <button key={wine.id} onClick={() => { setSelectedWine(wine); setChatOpen(false); trackView(wine.id); }} className={`w-full p-4 rounded-2xl border-2 flex gap-4 text-left transition-all ${wine.is_priority ? 'border-amber-400 bg-amber-50' : 'border-slate-100 bg-slate-50'}`}>
+                              <img src={wine.image_url} className="w-16 h-20 object-contain bg-white rounded-lg" />
+                              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                <p className="text-xs font-black text-slate-900 truncate">{wine.name_jp}</p>
+                                <p className="text-sm font-black text-slate-900">¥{Number(wine.price_bottle).toLocaleString()}</p>
+                              </div>
+                              <ChevronRight className="self-center text-slate-300" size={20} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-lg font-bold leading-relaxed">{h.content}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isTyping && <div className="flex justify-start"><Loader2 className="animate-spin text-amber-500" /></div>}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="p-8 border-t bg-white">
+            <div className="flex gap-3 bg-slate-100 p-2 rounded-3xl border border-slate-200">
+              <input value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleChat()} placeholder="気分や好みを入力..." className="flex-1 bg-transparent px-6 py-4 font-bold text-slate-900 outline-none" />
+              <button onClick={handleChat} disabled={!message.trim()} className="bg-slate-900 text-white w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center disabled:opacity-50 transition-all active:scale-90">
+                <Send size={24} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

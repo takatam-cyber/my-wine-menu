@@ -1,103 +1,60 @@
 "use client";
-
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Download } from 'lucide-react';
+import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function MasterAdmin() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [count, setCount] = useState(0);
+  const [msg, setMsg] = useState('');
   const router = useRouter();
 
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
     setStatus('idle');
-    setErrorMessage('');
-
     const formData = new FormData();
     formData.append('file', file);
 
     try {
       const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
       const result = await res.json();
-      
       if (res.ok) {
         setStatus('success');
-        setCount(result.count);
+        setMsg(`${result.count}件更新完了`);
       } else {
-        // サーバーから返ってきた具体的なエラーをセットする
-        setErrorMessage(result.error || "データの取り込み中にエラーが発生しました。");
         setStatus('error');
+        setMsg(result.error || "失敗しました");
       }
     } catch (e: any) {
-      setErrorMessage("通信エラーが発生しました: " + e.message);
       setStatus('error');
+      setMsg(e.message);
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 font-sans">
-      <div className="max-w-2xl mx-auto space-y-8 text-left">
-        <div className="flex justify-between items-center">
-          <button onClick={() => router.push('/admin')} className="flex items-center gap-2 text-slate-400 font-bold hover:text-slate-600 transition-colors">
-            <ArrowLeft size={20}/> Back to Menu
-          </button>
-          <button onClick={() => window.location.href = '/api/master/export'} className="flex items-center gap-2 text-amber-600 font-bold hover:text-amber-700 transition-colors bg-amber-50 px-4 py-2 rounded-full text-sm">
-            <Download size={16}/> 現在のマスターを出力
-          </button>
-        </div>
-
-        <div className="bg-white rounded-[3rem] p-12 shadow-xl border border-slate-100">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="p-4 bg-amber-500 rounded-3xl text-white shadow-lg">
-              <Database size={32}/>
-            </div>
-            <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Master Data</h1>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">CSV Bulk Import</p>
-            </div>
+    <div className="min-h-screen bg-slate-50 p-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <button onClick={() => router.push('/admin')} className="flex items-center gap-2 font-bold text-slate-400"><ArrowLeft size={20}/> Back</button>
+        <div className="bg-white rounded-[3rem] p-12 shadow-xl">
+          <h1 className="text-3xl font-black mb-8 flex items-center gap-4"><Database className="text-amber-500" size={32}/> Master Data</h1>
+          <div className="border-4 border-dashed rounded-[2rem] p-12 text-center bg-slate-50/50 hover:border-amber-200 transition-colors">
+            <Upload className="mx-auto text-slate-300 mb-4" size={48}/>
+            <p className="font-bold text-slate-600">{file ? file.name : "CSVを選択してください"}</p>
+            <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv" />
+            <label htmlFor="csv" className="mt-4 inline-block px-8 py-3 bg-white border-2 rounded-full font-black text-xs cursor-pointer hover:bg-black hover:text-white transition-all">ファイル選択</label>
           </div>
-
-          <div className="space-y-6">
-            <div className="border-4 border-dashed border-slate-100 rounded-[2rem] p-12 text-center space-y-4 hover:border-amber-200 transition-colors bg-slate-50/50">
-              <Upload className="mx-auto text-slate-300" size={48}/>
-              <div className="space-y-1">
-                <p className="text-lg font-bold text-slate-600">{file ? file.name : "ワインリストCSVを選択"}</p>
-                <p className="text-xs text-slate-400">Geminiで作成したCSVをそのままアップロードしてください</p>
-              </div>
-              <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv-upload" />
-              <label htmlFor="csv-upload" className="inline-block px-8 py-3 bg-white border-2 border-slate-200 rounded-full font-black text-xs cursor-pointer hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-                ファイルを選択
-              </label>
+          <button onClick={handleUpload} disabled={!file || uploading} className="w-full mt-6 py-6 bg-amber-500 text-black rounded-[1.5rem] font-black text-lg disabled:opacity-50 flex items-center justify-center gap-3">
+            {uploading ? <Loader2 className="animate-spin" /> : "データを一括更新"}
+          </button>
+          {status !== 'idle' && (
+            <div className={`mt-6 p-6 rounded-2xl font-bold flex items-center gap-3 ${status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+              {status === 'success' ? <CheckCircle2/> : <AlertCircle/>} {msg}
             </div>
-
-            <button 
-              onClick={handleUpload} disabled={!file || uploading}
-              className="w-full py-6 bg-amber-500 text-black rounded-[1.5rem] font-black text-lg shadow-xl shadow-amber-500/20 hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-            >
-              {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを一括登録する"}
-            </button>
-
-            {status === 'success' && (
-              <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-3 font-bold border border-emerald-100 animate-in fade-in slide-in-from-top-4">
-                <CheckCircle2/> {count}件のワインデータを正常に更新しました！
-              </div>
-            )}
-            {status === 'error' && (
-              <div className="p-6 bg-red-50 text-red-700 rounded-2xl flex flex-col gap-2 font-bold border border-red-100">
-                <div className="flex items-center gap-3">
-                  <AlertCircle/> 更新に失敗しました
-                </div>
-                <p className="text-xs font-normal ml-8">詳細: {errorMessage}</p>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

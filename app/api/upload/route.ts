@@ -1,5 +1,6 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(req: Request) {
   try {
@@ -8,12 +9,9 @@ export async function POST(req: Request) {
     if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
     const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
-    
-    // @ts-ignore
-    const BUCKET = process.env.WINE_IMAGES;
-    if (!BUCKET) throw new Error("R2 Bucket not found");
+    const env = getRequestContext().env;
+    const BUCKET = env.WINE_IMAGES; // 環境変数から取得
 
-    // ArrayBufferを使ってより標準的な方法で保存
     const arrayBuffer = await file.arrayBuffer();
     await BUCKET.put(fileName, arrayBuffer, {
       httpMetadata: { contentType: file.type }
@@ -22,7 +20,6 @@ export async function POST(req: Request) {
     const publicBaseUrl = "https://pub-8c250d9c7f3844fdbb17adeaae8d32b1.r2.dev"; 
     return NextResponse.json({ url: `${publicBaseUrl}/${fileName}` });
   } catch (e) {
-    console.error("Upload Error:", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

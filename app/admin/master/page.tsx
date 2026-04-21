@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'; // Loader2を追加しました
+import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Download } from 'lucide-react';
 
 export default function MasterAdmin() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [count, setCount] = useState(0);
   const router = useRouter();
 
   const handleUpload = async () => {
@@ -19,26 +21,37 @@ export default function MasterAdmin() {
     formData.append('file', file);
 
     try {
-      // インポーター専用のバルク登録APIを叩く
       const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
+      const result = await res.json();
       if (res.ok) {
         setStatus('success');
+        setCount(result.count);
       } else {
-        setStatus('error');
+        throw new Error(result.error || "アップロードに失敗しました");
       }
-    } catch (e) {
+    } catch (e: any) {
       setStatus('error');
+      setErrorMessage(e.message);
     } finally {
       setUploading(false);
     }
   };
 
+  const handleExport = async () => {
+    window.location.href = '/api/master/export';
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-8 font-sans">
       <div className="max-w-2xl mx-auto space-y-8 text-left">
-        <button onClick={() => router.push('/admin')} className="flex items-center gap-2 text-slate-400 font-bold hover:text-slate-600 transition-colors">
-          <ArrowLeft size={20}/> Back to Menu
-        </button>
+        <div className="flex justify-between items-center">
+          <button onClick={() => router.push('/admin')} className="flex items-center gap-2 text-slate-400 font-bold hover:text-slate-600 transition-colors">
+            <ArrowLeft size={20}/> Back to Menu
+          </button>
+          <button onClick={handleExport} className="flex items-center gap-2 text-amber-600 font-bold hover:text-amber-700 transition-colors bg-amber-50 px-4 py-2 rounded-full text-sm">
+            <Download size={16}/> 現在のマスターを出力
+          </button>
+        </div>
 
         <div className="bg-white rounded-[3rem] p-12 shadow-xl border border-slate-100">
           <div className="flex items-center gap-4 mb-8">
@@ -47,7 +60,7 @@ export default function MasterAdmin() {
             </div>
             <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight">Master Data</h1>
-              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">CSV Bulk Import</p>
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">CSV Bulk Import/Export</p>
             </div>
           </div>
 
@@ -56,7 +69,7 @@ export default function MasterAdmin() {
               <Upload className="mx-auto text-slate-300" size={48}/>
               <div className="space-y-1">
                 <p className="text-lg font-bold text-slate-600">{file ? file.name : "ワインリストCSVを選択"}</p>
-                <p className="text-xs text-slate-400">Gemini 3で生成したCSVファイルをアップロードしてください</p>
+                <p className="text-xs text-slate-400">Geminiで生成した最新のCSVをここにドロップ</p>
               </div>
               <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv-upload" />
               <label htmlFor="csv-upload" className="inline-block px-8 py-3 bg-white border-2 border-slate-200 rounded-full font-black text-xs cursor-pointer hover:bg-slate-900 hover:text-white transition-all shadow-sm">
@@ -68,17 +81,20 @@ export default function MasterAdmin() {
               onClick={handleUpload} disabled={!file || uploading}
               className="w-full py-6 bg-amber-500 text-black rounded-[1.5rem] font-black text-lg shadow-xl shadow-amber-500/20 hover:bg-amber-400 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
             >
-              {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを一括登録する"}
+              {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを一括更新する"}
             </button>
 
             {status === 'success' && (
               <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-3 font-bold border border-emerald-100 animate-in fade-in slide-in-from-top-4">
-                <CheckCircle2/> マスターデータの更新に成功しました！
+                <CheckCircle2/> {count}件のワインデータを正常に更新しました！
               </div>
             )}
             {status === 'error' && (
-              <div className="p-6 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 font-bold border border-red-100">
-                <AlertCircle/> 更新に失敗しました。CSVのヘッダー名が正しいか確認してください。
+              <div className="p-6 bg-red-50 text-red-700 rounded-2xl flex flex-col gap-2 font-bold border border-red-100">
+                <div className="flex items-center gap-3">
+                  <AlertCircle/> 更新に失敗しました
+                </div>
+                <p className="text-xs font-normal ml-8">{errorMessage}</p>
               </div>
             )}
           </div>

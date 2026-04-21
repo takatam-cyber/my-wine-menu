@@ -1,4 +1,6 @@
 "use client";
+export const runtime = 'edge';
+
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Upload, Save, Loader2, FileText, CheckCircle2 } from 'lucide-react';
@@ -11,7 +13,6 @@ export default function InventoryManager({ params }: { params: Promise<{ slug: s
   const [currentWines, setCurrentWines] = useState<any[]>([]);
   const router = useRouter();
 
-  // 現在の店舗のワインリストを表示
   useEffect(() => {
     fetch(`/api/wines?slug=${slug}`).then(res => res.json()).then(setCurrentWines).catch(() => {});
   }, [slug, status]);
@@ -70,13 +71,12 @@ export default function InventoryManager({ params }: { params: Promise<{ slug: s
           </div>
 
           {status === 'success' && (
-            <div className="mt-6 p-4 bg-emerald-50 text-emerald-700 rounded-xl flex items-center gap-2 font-bold border border-emerald-100">
+            <div className="mt-6 p-4 bg-emerald-50 text-emerald-700 rounded-xl flex items-center gap-2 font-bold border border-emerald-100 animate-bounce">
               <CheckCircle2 size={20}/> メニューの更新に成功しました！
             </div>
           )}
         </div>
 
-        {/* 現在のラインナップ表示 */}
         <div className="space-y-4">
           <h2 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-4">Current Lineup（現在のリスト）</h2>
           <div className="grid gap-3">

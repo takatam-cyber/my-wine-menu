@@ -4,30 +4,48 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(req: Request) {
   try {
-    const wines = await req.json();
-    const db = getRequestContext().env.DB;
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+    if (!file) return NextResponse.json({ error: "No file" }, { status: 400 });
 
-    const statements = wines.map((w: any) => {
-      const flavor = JSON.stringify({
-        sweetness: w.sweetness, body: w.body, acidity: w.acidity, 
-        tannin: w.tannin, aroma_intensity: w.aroma_intensity,
-        complexity: w.complexity, aftertaste: w.aftertaste, oak: w.oak
-      });
+    const text = await file.text();
+    const rows = text.split('\n').filter(row => row.trim() !== '');
+    const headers = rows[0].split(',').map(h => h.trim());
+    
+    const env = getRequestContext().env;
 
-      return db.prepare(`
-        INSERT OR REPLACE INTO wines_master 
-        (id, name_jp, name_en, country, region, grape, color, type, vintage, alcohol, 
-         ai_explanation, menu_short, pairing, flavor_profile, aroma_features, tags, best_drinking, image_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    for (let i = 1; i < rows.length; i++) {
+      const values = rows[i].split(',').map(v => v.trim());
+      const data: any = {};
+      headers.forEach((h, idx) => { data[h] = values[idx]; });
+
+      // CSVの日本語ヘッダーをDBのカラム名にマッピング
+      const wineId = data['ID'];
+      if (!wineId) continue;
+
+      // インポーター主導権：自社ワイン(ピーロートなど)なら優先フラグを立てる
+      const isPriority = data['仕入先']?.includes('ピーロート') ? 1 : 0;
+
+      await env.DB.prepare(`
+        INSERT INTO wines_master (
+          id, name_jp, name_en, country, region, grape, color, type, vintage, 
+          alcohol, ai_explanation, menu_short, pairing, aroma_features, tags, 
+          image_url, is_priority
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name_jp=excluded.name_jp, ai_explanation=excluded.ai_explanation, 
+          image_url=excluded.image_url, is_priority=excluded.is_priority
       `).bind(
-        String(w.id), w.name_jp, w.name_en, w.country, w.region, w.grape, w.color, w.type, w.vintage, w.alcohol,
-        w.ai_explanation, w.menu_short, w.pairing, flavor, w.aroma_features, w.tags, w.best_drinking, w.image_url
-      );
-    });
+        wineId, data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
+        data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
+        data['アルコール'], data['AI解説'], data['メニュー用短文'], data['ペアリング'],
+        data['香りの特徴'], data['タグ'], data['画像URL'], isPriority
+      ).run();
+    }
 
-    await db.batch(statements);
-    return NextResponse.json({ success: true, count: wines.length });
+    return NextResponse.json({ success: true });
   } catch (e: any) {
+    console.error(e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

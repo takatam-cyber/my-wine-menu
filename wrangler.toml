@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB" # コード内で env.DB として参照される名前
 database_name = "wine-menu-db"
-database_id = "xxxx-xxxx-xxxx" # 本番環境のIDに書き換えてください
+database_id = "6ee572fe-a3e7-4a3d-92d3-a43b1b062e44" # 本番環境のIDに書き換えてください
 
 [[kv_namespaces]]
 binding = "WINE_KV"

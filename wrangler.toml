@@ -1,4 +1,4 @@
-# 修正後の wrangler.toml (これ以外は全て消してください)
+# 修正後の wrangler.toml
 name = "my-wine-menu"
 pages_build_output_dir = ".vercel/output/static"
 compatibility_date = "2024-12-16"

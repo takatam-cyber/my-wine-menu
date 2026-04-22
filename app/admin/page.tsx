@@ -2,10 +2,7 @@
 export const runtime = 'edge';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Store, Plus, Search, Database, LayoutDashboard, 
-  LogOut, Download, ExternalLink, Settings, FileSpreadsheet 
-} from 'lucide-react';
+import { Store, Plus, Search, Database, LayoutDashboard, LogOut, Download, ExternalLink, Settings, FileSpreadsheet } from 'lucide-react';
 
 export default function AdminDashboard() {
   const [stores, setStores] = useState<any[]>([]);
@@ -38,7 +35,7 @@ export default function AdminDashboard() {
         </div>
 
         <div className="relative group">
-          <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500" size={24}/>
+          <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" size={24}/>
           <input type="text" placeholder="店舗名やURLで検索..." className="w-full p-7 pl-16 bg-white rounded-[2.5rem] shadow-sm outline-none ring-amber-500 font-bold text-lg border-2 border-transparent focus:border-amber-500 transition-all" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
 
@@ -54,7 +51,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <h3 className="text-2xl font-black truncate">{store.store_name}</h3>
-              <button onClick={() => router.push(`/admin/inventory/${store.slug}`)} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm uppercase hover:bg-amber-500 hover:text-black transition-all shadow-lg">在庫・価格を編集</button>
+              <button onClick={() => router.push(`/admin/inventory/${store.slug}`)} className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm uppercase hover:bg-amber-500 hover:text-black transition-all shadow-lg text-center">在庫・価格を編集</button>
             </div>
           ))}
         </div>

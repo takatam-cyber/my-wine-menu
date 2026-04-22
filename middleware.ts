@@ -4,13 +4,15 @@ import type { NextRequest } from 'next/server';
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   
-  // ホワイトリスト（認証なしでOK）
+  // ホワイトリスト：認証なしでアクセス可能
   if (
     pathname === '/' ||
     pathname === '/admin/login' ||
     pathname === '/admin/register' ||
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/api/store/config/public')
+    pathname === '/api/auth' ||
+    pathname === '/api/auth/register' ||
+    pathname.startsWith('/api/store/config/public') ||
+    pathname.startsWith('/api/wines') // 公開メニュー用
   ) {
     return NextResponse.next();
   }

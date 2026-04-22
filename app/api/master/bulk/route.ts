@@ -6,18 +6,42 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    if (!file) throw new Error("CSVファイルが選択されていません。");
+    if (!file) throw new Error("CSVファイルが見つかりません。");
 
     let text = await file.text();
     
-    // BOM除去と改行正規化（プロの基本処理）
+    // 【対策1】BOM（目に見えないゴミ文字）と特殊な改行コードを完全に除去
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const rows = text.split('\n').filter(line => line.trim());
+    
+    // 引用符内の改行を考慮した行分割
+    const rows: string[] = [];
+    let currentRow = "";
+    let inQuote = false;
+    for (const char of text) {
+      if (char === '"') inQuote = !inQuote;
+      if (char === '\n' && !inQuote) {
+        if (currentRow.trim()) rows.push(currentRow);
+        currentRow = "";
+      } else {
+        currentRow += char;
+      }
+    }
+    if (currentRow.trim()) rows.push(currentRow);
+
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // ヘッダーをすべて小文字で取得（表記ゆれ防止）
-    const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
-    
+    // 【対策2】ヘッダーの「超」クレンジング
+    const rawHeaders = rows[0].split(',');
+    const headers = rawHeaders.map(h => 
+      h.replace(/\/gi, '').replace(/["']/g, '').trim()
+    );
+
+    // 【対策3】「ID」列を位置を問わず特定
+    const idIdx = headers.findIndex(h => h.toUpperCase() === "ID");
+    if (idIdx === -1) {
+      throw new Error(`「ID」列が見つかりません。認識したヘッダー: ${headers.join(' / ')}`);
+    }
+
     const db = getRequestContext().env.DB;
     const batch = [];
 
@@ -25,20 +49,23 @@ export async function POST(req: Request) {
       // 引用符内のカンマを保護するパース
       const values: string[] = [];
       let cell = "";
-      let inQuote = false;
+      let inCellQuote = false;
       for (const char of rows[i]) {
-        if (char === '"') inQuote = !inQuote;
-        else if (char === ',' && !inQuote) { values.push(cell.trim().replace(/^"|"$/g, '')); cell = ""; }
-        else cell += char;
+        if (char === '"') inCellQuote = !inCellQuote;
+        else if (char === ',' && !inCellQuote) {
+          values.push(cell.trim().replace(/^"|"$/g, ''));
+          cell = "";
+        } else cell += char;
       }
       values.push(cell.trim().replace(/^"|"$/g, ''));
 
       const data: any = {};
       headers.forEach((h, idx) => { if (h) data[h] = values[idx] || ""; });
 
-      // IDがなければスキップ
-      if (!data.id) continue;
+      const wineId = values[idIdx];
+      if (!wineId) continue;
 
+      const isPriority = (data['仕入先'] || '').includes('ピーロート') ? 1 : 0;
       const getNum = (key: string) => {
         const val = parseFloat(data[key]);
         return isNaN(val) ? 0 : val;
@@ -53,16 +80,19 @@ export async function POST(req: Request) {
             aroma_intensity, complexity, finish, oak
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
-            name_jp=excluded.name_jp, name_en=excluded.name_en, ai_explanation=excluded.ai_explanation,
+            name_jp=excluded.name_jp, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
-            sweetness=excluded.sweetness, body=excluded.body, acidity=excluded.acidity
+            pairing=excluded.pairing, sweetness=excluded.sweetness, body=excluded.body,
+            acidity=excluded.acidity, tannins=excluded.tannins,
+            aroma_intensity=excluded.aroma_intensity, complexity=excluded.complexity,
+            finish=excluded.finish, oak=excluded.oak
         `).bind(
-          data.id, data.name_jp, data.name_en, data.country, data.region, data.grape, 
-          data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 
-          data.menu_short, data.pairing, data.aroma_features, data.tags, data.image_url,
-          (data.supplier || "").includes('ピーロート') ? 1 : 0,
-          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins'),
-          getNum('aroma_intensity'), getNum('complexity'), getNum('finish'), getNum('oak')
+          wineId, data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
+          data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
+          data['アルコール'], data['AI解説'], data['メニュー用短文'], data['ペアリング'],
+          data['香りの特徴'], data['タグ'], data['画像URL'], isPriority,
+          getNum('甘味'), getNum('ボディ'), getNum('酸味'), getNum('渋み'),
+          getNum('香り強'), getNum('複雑性'), getNum('余韻'), getNum('樽感')
         )
       );
     }
@@ -70,6 +100,7 @@ export async function POST(req: Request) {
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {
+    console.error("Bulk Import Fatal Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

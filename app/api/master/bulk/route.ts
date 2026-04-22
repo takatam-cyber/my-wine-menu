@@ -6,65 +6,42 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File;
-    if (!file) throw new Error("ファイルが見つかりません。");
+    if (!file) throw new Error("File missing");
 
     let text = await file.text();
-    
-    // 【対策1】BOM（目に見えないゴミ）や特殊な改行を徹底除去
-    text = text.replace(/^\uFEFF/, '').replace(/\r/g, '');
+    // BOM除去と改行正規化
+    text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
-    if (rows.length < 2) throw new Error("CSVに有効なデータがありません。");
 
-    // 【対策2】ヘッダーの「超」クレンジング
-    // などのタグ除去、前後の空白除去、ダブルクォート除去
-    const rawHeaders = rows[0].split(',');
-    const headers = rawHeaders.map(h => 
-      h.trim()
-       .replace(/^"|"$/g, '')
-       .replace(/^\\s*/i, '') // 大文字小文字問わず除去
-       .trim()
+    // ヘッダーの徹底洗浄（目に見えない文字も除去）
+    const headers = rows[0].split(',').map(h => 
+      h.trim().replace(/^"|"$/g, '').replace(/^\\s*/i, '').trim()
     );
-
-    // デバッグ用：システムが認識したヘッダー名をログに出す
-    console.log("Parsed Headers:", headers);
-
+    
     const db = getRequestContext().env.DB;
     const batch = [];
 
+    // ID列がどこにあるか動的に探す
+    const idIdx = headers.findIndex(h => h.toUpperCase() === "ID");
+    if (idIdx === -1) throw new Error(`ID列が見つかりません。認識したヘッダー: ${headers.join(',')}`);
+
     for (let i = 1; i < rows.length; i++) {
-      // 【対策3】引用符内のカンマを保護しながら分割するプロ仕様パサー
+      // 引用符内のカンマに対応したパース
       const values: string[] = [];
       let cell = "";
       let inQuote = false;
-      const currentRow = rows[i];
-      
-      for (let j = 0; j < currentRow.length; j++) {
-        const char = currentRow[j];
-        if (char === '"') {
-          inQuote = !inQuote;
-        } else if (char === ',' && !inQuote) {
-          values.push(cell.trim().replace(/^"|"$/g, ''));
-          cell = "";
-        } else {
-          cell += char;
-        }
+      for (const char of rows[i]) {
+        if (char === '"') inQuote = !inQuote;
+        else if (char === ',' && !inQuote) { values.push(cell.trim().replace(/^"|"$/g, '')); cell = ""; }
+        else cell += char;
       }
       values.push(cell.trim().replace(/^"|"$/g, ''));
 
-      // データのマッピング
       const data: any = {};
-      headers.forEach((h, idx) => {
-        if (h) data[h] = values[idx] || "";
-      });
+      headers.forEach((h, idx) => { data[h] = values[idx] || ""; });
 
-      // 【対策4】「ID」というキーを大文字小文字・空白問わず探し出す
-      const idKey = Object.keys(data).find(k => k.toUpperCase().trim() === "ID");
-      const wineId = idKey ? data[idKey] : null;
-
-      if (!wineId) {
-        // エラー詳細を具体的に投げる
-        throw new Error(`Row ${i} でIDが見つかりません。ヘッダー名を確認してください。認識中のヘッダー: ${headers.join('/')}`);
-      }
+      const wineId = values[idIdx];
+      if (!wineId) continue;
 
       const isPriority = (data['仕入先'] || '').includes('ピーロート') ? 1 : 0;
       const getNum = (key: string) => {
@@ -84,9 +61,7 @@ export async function POST(req: Request) {
             name_jp=excluded.name_jp, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
             pairing=excluded.pairing, sweetness=excluded.sweetness, body=excluded.body,
-            acidity=excluded.acidity, tannins=excluded.tannins,
-            aroma_intensity=excluded.aroma_intensity, complexity=excluded.complexity,
-            finish=excluded.finish, oak=excluded.oak
+            acidity=excluded.acidity, tannins=excluded.tannins
         `).bind(
           wineId, data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
           data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
@@ -98,12 +73,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (batch.length === 0) throw new Error("取り込み可能なデータが0件です。");
-
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {
-    console.error("Bulk Import Fatal Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -7,27 +7,31 @@ export async function POST(req: Request) {
     const { message, history, wineList } = await req.json();
     const env = getRequestContext().env;
 
-    // 自社優先度（is_priority）の高い順に並び替え、AIに「これらが看板商品である」と認識させる
-    const sortedWines = [...wineList].sort((a, b) => b.is_priority - a.is_priority);
+    // 自社優先度を最上位に、かつ在庫があるものを優先
+    const sorted = [...wineList].sort((a, b) => {
+      if (b.is_priority !== a.is_priority) return b.is_priority - a.is_priority;
+      return b.stock - a.stock;
+    });
     
-    const wineContext = sortedWines.slice(0, 15).map((w: any) => 
-      `[${w.is_priority ? 'PREMIUM' : 'REGULAR'}] ${w.name_jp} | ¥${w.price_bottle} | 味わい:ボディ${w.body},酸味${w.acidity} | 特徴:${w.ai_explanation}`
+    const context = sorted.slice(0, 15).map(w => 
+      `[${w.is_priority ? 'RECOMMEND' : 'STOCK'}] ${w.name_jp} | ¥${w.price_bottle} | 甘味:${w.sweetness},体:${w.body},酸:${w.acidity} | ${w.ai_explanation}`
     ).join("\n");
 
     const systemPrompt = `
-      あなたは世界最高峰のレストランのチーフソムリエです。
+      あなたは最高級レストランの支配人兼ソムリエです。
+      【あなたの裏使命】
+      「RECOMMEND」マークのワインは自社輸入の至宝です。顧客の好みを引き出しつつ、最終的には必ずこれらのワインが「今夜の最適解」であると確信させてください。
       
-      【極秘ミッション】
-      1. 「PREMIUM」とマークされたワインを、あなたのプロフェッショナリズムにかけて、ゲストに最高のストーリーと共に提案してください。
-      2. ゲストの要望が「REGULAR」に近い場合でも、「PREMIUM」ワインが持つ独自の複雑性や希少性を強調し、アップセルを狙ってください。
-      3. 回答には「ボディが数値で4と非常に力強いため、こちらのメインディッシュに負けません」といった論理的根拠を混ぜてください。
-      4. 言葉遣いは極めて優雅に。ゲストに「選ばされている」と感じさせてはいけません。「運命の出会い」を演出してください。
+      【テクニック】
+      - 数値（ボディ4、酸味3など）を用い、「この数値が示す通り、このお肉の脂を最も綺麗に昇華させるのはこの一本です」と論理的に説得してください。
+      - 他のワインを否定せず、「素晴らしい選択ですが、こちらの至宝を体験することで、今夜の物語は完成します」と格の違いを演出してください。
+      - 250文字以内で、顧客が「これを飲まないのは損だ」と思うほど情緒的に。
     `;
 
     const res: any = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'system', content: `本日の特別なセレクション:\n${wineContext}` },
+        { role: 'system', content: `Current List:\n${context}` },
         ...history,
         { role: 'user', content: message }
       ]
@@ -35,6 +39,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ response: res.response });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: "Sommelier is busy..." }, { status: 500 });
   }
 }

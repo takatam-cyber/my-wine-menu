@@ -9,22 +9,19 @@ export async function POST(req: Request) {
     if (!file) throw new Error("CSVファイルが選択されていません。");
 
     let text = await file.text();
-    
-    // BOM除去と改行正規化
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // 【修正済】Geminiのソースタグ や引用符を安全に除去
+    // 【修正済】正規表現のリテラルエラーを解消し、Geminiのソースタグ等を除去
     const headers = rows[0].split(',').map(h => 
-      h.replace(/\/gi, '').replace(/["']/g, '').trim().toLowerCase()
+      h.replace(/【\d+†source】/gi, '').replace(/["']/g, '').trim().toLowerCase()
     );
     
     const db = getRequestContext().env.DB;
     const batch = [];
-
-    // "id"列の位置を特定
     const idIdx = headers.findIndex(h => h === "id");
+
     if (idIdx === -1) throw new Error(`「id」列が見つかりません。認識ヘッダー: ${headers.join('/')}`);
 
     for (let i = 1; i < rows.length; i++) {
@@ -61,26 +58,23 @@ export async function POST(req: Request) {
           INSERT INTO wines_master (
             id, name_jp, name_en, country, region, grape, color, type, vintage, 
             alcohol, ai_explanation, menu_short, pairing, aroma_features, tags, 
-            image_url, is_priority, sweetness, body, acidity, tannins, 
-            aroma_intensity, complexity, finish, oak
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            image_url, is_priority, sweetness, body, acidity, tannins
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             name_jp=excluded.name_jp, name_en=excluded.name_en, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
             sweetness=excluded.sweetness, body=excluded.body, acidity=excluded.acidity,
-            pairing=excluded.pairing, menu_short=excluded.menu_short
+            tannins=excluded.tannins, pairing=excluded.pairing
         `).bind(
           wineId, data.name_jp, data.name_en, data.country, data.region, data.grape, 
           data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 
           data.menu_short, data.pairing, data.aroma_features, data.tags, data.image_url,
-          (data.supplier || "").includes('ピーロート') ? 1 : 0,
-          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins'),
-          getNum('aroma_intensity'), getNum('complexity'), getNum('finish'), getNum('oak')
+          (data.supplier || "").includes('ピーロート') ? 1 : 0, // 自社商品を自動判別
+          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins')
         )
       );
     }
 
-    if (batch.length === 0) throw new Error("有効なデータが0件でした。");
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {

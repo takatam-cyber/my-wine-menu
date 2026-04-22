@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // 【修正済】や引用符を安全に除去する正規表現
+    // 【重要修正】Geminiのソースタグ や引用符を安全に除去する正規表現
     const headers = rows[0].split(',').map(h => 
       h.replace(/\/gi, '').replace(/["']/g, '').trim().toLowerCase()
     );
@@ -33,6 +33,7 @@ export async function POST(req: Request) {
       let inQuote = false;
       const currentRow = rows[i];
       
+      // 引用符内のカンマを保護しながら分割
       for (let j = 0; j < currentRow.length; j++) {
         const char = currentRow[j];
         if (char === '"') inQuote = !inQuote;

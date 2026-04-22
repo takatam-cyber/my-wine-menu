@@ -1,3 +1,4 @@
+// middleware.ts の完全版
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyJWT } from './lib/auth';
@@ -8,7 +9,7 @@ export async function middleware(req: NextRequest) {
   const env = (getRequestContext() as any).env;
   const secret = env.JWT_SECRET || "fallback";
 
-  // ホワイトリスト
+  // ホワイトリスト：ログインなしでアクセス可能なページ
   if (
     pathname === '/' || pathname === '/admin/login' || 
     pathname === '/admin/register' || pathname === '/api/auth' || 
@@ -20,6 +21,7 @@ export async function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get('auth_token')?.value;
+  // ここでトークンの有効性を厳格にチェック
   const payload = token ? await verifyJWT(token, secret) : null;
 
   if (!payload) {
@@ -27,7 +29,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/admin/login', req.url));
   }
 
-  // 【重要】ログインユーザーのメールアドレスをヘッダーにセットしてAPIに渡す
+  // 【重要】ログインユーザーのメールをヘッダーにセットして、後のAPI（店舗追加など）で使えるようにする
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-user-email', payload.email);
 

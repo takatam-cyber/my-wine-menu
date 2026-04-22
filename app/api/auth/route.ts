@@ -8,28 +8,25 @@ export async function POST(req: Request) {
     const { email, password } = await req.json();
     const env = getRequestContext().env;
 
-    // 1. ダッシュボードの設定値を優先、なければコード内の値を使用
-    const ADMIN_EMAIL = env.ADMIN_EMAIL || "takatam@pieroth.jp";
-    const ADMIN_PASS = env.ADMIN_PASS || "19770912";
-    const JWT_SECRET = env.JWT_SECRET || "YOUR_SUPER_SECRET_KEY_2026";
+    // データベースから仮パスワードを取得
+    const user: any = await env.DB.prepare("SELECT * FROM users WHERE email = ?")
+      .bind(email).first();
 
-    // 2. 厳格な比較
-    if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
-      const token = await signJWT({ email }, JWT_SECRET);
-      const response = NextResponse.json({ success: true });
-      
-      response.cookies.set('auth_token', token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'strict',
-        maxAge: 60 * 60 * 12,
-        path: '/',
-      });
-      return response;
+    if (!user || password !== user.temp_password) {
+      return NextResponse.json({ error: "メールアドレスまたはパスワードが違います" }, { status: 401 });
     }
 
-    return NextResponse.json({ error: "認証失敗" }, { status: 401 });
+    // 認証成功: JWT発行
+    const secret = env.JWT_SECRET || "YOUR_SUPER_SECRET_KEY_2026";
+    const token = await signJWT({ email }, secret);
+    
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('auth_token', token, {
+      httpOnly: true, secure: true, sameSite: 'strict',
+      maxAge: 60 * 60 * 12, path: '/',
+    });
+    return response;
   } catch (e: any) {
-    return NextResponse.json({ error: "Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "System Error" }, { status: 500 });
   }
 }

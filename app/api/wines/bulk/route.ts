@@ -8,11 +8,11 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     const slug = formData.get('slug') as string;
     
-    if (!file || !slug) throw new Error("Missing data");
+    if (!file || !slug) throw new Error("データが不足しています");
 
     const buffer = await file.arrayBuffer();
     let text = new TextDecoder("utf-8").decode(buffer);
-    if (text.includes('')) {
+    if (text.includes('\uFFFD')) {
       text = new TextDecoder("shift-jis").decode(buffer);
     }
 
@@ -21,19 +21,17 @@ export async function POST(req: Request) {
     const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
     
     const db = getRequestContext().env.DB;
-    const batchRequests = [];
-
     const store = await db.prepare("SELECT store_email FROM store_configs WHERE slug = ?").bind(slug).first();
-    if (!store) throw new Error(`店舗が登録されていません。`);
+    if (!store) throw new Error(`店舗「${slug}」が見つかりません`);
 
-    batchRequests.push(db.prepare(`DELETE FROM store_inventory WHERE store_id = ?`).bind(store.store_email));
+    const batchRequests = [
+      db.prepare(`DELETE FROM store_inventory WHERE store_id = ?`).bind(store.store_email)
+    ];
 
     for (let i = 1; i < rows.length; i++) {
       const values: string[] = [];
-      let cell = "";
-      let inQuote = false;
-      const currentRow = rows[i];
-      for (const char of currentRow) {
+      let cell = "", inQuote = false;
+      for (const char of rows[i]) {
         if (char === '"') inQuote = !inQuote;
         else if (char === ',' && !inQuote) { values.push(cell.trim()); cell = ""; }
         else cell += char;
@@ -52,9 +50,9 @@ export async function POST(req: Request) {
           VALUES (?, ?, ?, ?, ?, 1)
         `).bind(
           store.store_email, wineId, 
-          parseInt(data['ボトル価格'] || data['price_bottle'] || '0'), 
-          parseInt(data['グラス価格'] || data['price_glass'] || '0'),
-          parseInt(data['在庫数'] || data['stock'] || '0')
+          parseInt(data['ボトル価格'] || '0'), 
+          parseInt(data['グラス価格'] || '0'),
+          parseInt(data['在庫数'] || '0')
         )
       );
     }

@@ -1,17 +1,7 @@
+// app/api/store/config/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-
-export async function GET(req: Request) {
-  const staffEmail = req.headers.get('x-user-email');
-  if (!staffEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  
-  const db = getRequestContext().env.DB;
-  const config = await db.prepare("SELECT store_name, slug, theme_color FROM store_configs WHERE staff_email = ?")
-    .bind(staffEmail).first();
-
-  return NextResponse.json(config || { store_name: '', slug: '', theme_color: '#b45309' });
-}
 
 export async function POST(req: Request) {
   const staffEmail = req.headers.get('x-user-email');
@@ -25,7 +15,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    // 【修正済】最新のDB構造（slug, staff_email, store_name, theme_color）に合わせる
     await db.prepare(`
       INSERT INTO store_configs (slug, staff_email, store_name, theme_color)
       VALUES (?, ?, ?, ?)
@@ -37,7 +26,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (e: any) {
     if (e.message.includes("UNIQUE")) {
-      return NextResponse.json({ error: "このURLは既に他の店舗が使用しています" }, { status: 400 });
+      return NextResponse.json({ error: "このURLは既に使用されています" }, { status: 400 });
     }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

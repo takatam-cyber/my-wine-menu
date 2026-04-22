@@ -1,4 +1,6 @@
 "use client";
+export const runtime = 'edge'; // Cloudflareにはこれが必須！
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2, Download } from 'lucide-react';
@@ -13,61 +15,41 @@ export default function MasterAdmin() {
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
-    setStatus('idle');
     const formData = new FormData();
     formData.append('file', file);
-    try {
-      const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
-      const result = await res.json();
-      if (res.ok) {
-        setStatus('success');
-        setMsg(`${result.count}件のワインデータを正常に同期しました！`);
-      } else {
-        setStatus('error');
-        setMsg(result.error || "データの取り込みに失敗しました。");
-      }
-    } catch (e: any) {
+    const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
+    const result = await res.json();
+    if (res.ok) {
+      setStatus('success');
+      setMsg(`${result.count}件同期完了`);
+    } else {
       setStatus('error');
-      setMsg("通信エラー: " + e.message);
-    } finally {
-      setUploading(false);
+      setMsg(result.error);
     }
+    setUploading(false);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 font-sans">
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex justify-between items-center text-left">
-          <button onClick={() => router.push('/admin')} className="flex items-center gap-2 font-bold text-slate-400 hover:text-slate-600 transition-colors">
-            <ArrowLeft size={20}/> Back
-          </button>
-          <a href="/api/master/template" className="flex items-center gap-2 bg-white px-5 py-2.5 rounded-full text-xs font-black border-2 border-slate-200 hover:bg-slate-50 transition-all text-slate-600 shadow-sm">
-            <Download size={14}/> テンプレートをDL
-          </a>
-        </div>
-        <div className="bg-white rounded-[3rem] p-12 shadow-xl border border-slate-100 text-left">
-          <h1 className="text-3xl font-black mb-8 flex items-center gap-4"><Database className="text-amber-500" size={32}/> Master Data</h1>
-          <div className="bg-amber-50 border-2 border-amber-100 rounded-[2rem] p-8 mb-10 text-sm text-amber-900">
-            <p className="font-black mb-2 text-base">💡 確実なアップロードの手順</p>
-            <ol className="list-decimal ml-5 space-y-2 font-bold opacity-80">
-              <li>右上の「テンプレートをDL」からCSVを取得</li>
-              <li>2行目以降にデータを貼り付け</li>
-              <li>保存して、下の「ファイル選択」からアップロード</li>
-            </ol>
-          </div>
-          <div className="border-4 border-dashed rounded-[2.5rem] p-12 text-center bg-slate-50/50 hover:border-amber-200 transition-colors">
+    <div className="min-h-screen bg-slate-50 p-8">
+      <div className="max-w-2xl mx-auto space-y-6 text-left">
+        <button onClick={() => router.push('/admin')} className="flex items-center gap-2 font-bold text-slate-400">
+          <ArrowLeft size={20}/> Back
+        </button>
+        <div className="bg-white rounded-[3rem] p-12 shadow-xl border border-slate-100">
+          <h1 className="text-3xl font-black mb-8 flex items-center gap-4 text-slate-900"><Database className="text-amber-500" size={32}/> Master Data</h1>
+          <div className="border-4 border-dashed rounded-[2.5rem] p-12 text-center bg-slate-50">
             <Upload className="mx-auto text-slate-300 mb-4" size={48}/>
-            <p className="font-bold text-slate-600">{file ? file.name : "CSVを選択してください"}</p>
-            <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" id="csv" />
-            <label htmlFor="csv" className="mt-4 inline-block px-10 py-3 bg-white border-2 rounded-full font-black text-xs cursor-pointer hover:bg-black hover:text-white transition-all shadow-sm">ファイル選択</label>
+            <p className="font-bold text-slate-600 mb-4">{file ? file.name : "CSVを選択（Excel保存OK）"}</p>
+            <input type="file" accept=".csv" onChange={e => setFile(e.target.files?.[0] || null)} className="hidden" id="csv" />
+            <label htmlFor="csv" className="px-8 py-3 bg-white border-2 rounded-full font-black text-xs cursor-pointer shadow-sm">ファイル選択</label>
           </div>
-          <button onClick={handleUpload} disabled={!file || uploading} className="w-full mt-6 py-7 bg-amber-500 text-black rounded-[1.5rem] font-black text-lg disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg hover:bg-amber-400 transition-all">
-            {uploading ? <Loader2 className="animate-spin" /> : "マスターデータを一括更新"}
+          <button onClick={handleUpload} disabled={!file || uploading} className="w-full mt-6 py-6 bg-amber-500 text-black rounded-2xl font-black text-lg shadow-lg">
+            {uploading ? <Loader2 className="animate-spin mx-auto" /> : "マスターを更新する"}
           </button>
           {status !== 'idle' && (
-            <div className={`mt-6 p-6 rounded-2xl font-bold flex items-center gap-3 ${status === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
-              {status === 'success' ? <CheckCircle2/> : <AlertCircle/>} {msg}
-            </div>
+             <div className={`mt-6 p-4 rounded-xl font-bold flex items-center gap-2 ${status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+               {status === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>} {msg}
+             </div>
           )}
         </div>
       </div>

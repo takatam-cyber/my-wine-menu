@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // 【修正点】や引用符を安全に除去する正規表現
+    // 【修正済】や引用符を安全に除去する正規表現
     const headers = rows[0].split(',').map(h => 
       h.replace(/\/gi, '').replace(/["']/g, '').trim().toLowerCase()
     );

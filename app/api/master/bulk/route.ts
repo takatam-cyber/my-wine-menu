@@ -10,12 +10,13 @@ export async function POST(req: Request) {
 
     let text = await file.text();
     
-    // 【重要】BOM（目に見えない文字）と改行コードの完全除去
+    // BOM除去と改行正規化
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
     // ヘッダーのクレンジング：英語ヘッダーを小文字で統一
+    // 修正点：正規表現のバックスラッシュを正しく記述
     const headers = rows[0].split(',').map(h => 
       h.replace(/\/gi, '').replace(/["']/g, '').trim().toLowerCase()
     );
@@ -31,10 +32,17 @@ export async function POST(req: Request) {
       const values: string[] = [];
       let cell = "";
       let inQuote = false;
-      for (const char of rows[i]) {
+      const currentRow = rows[i];
+      
+      for (let j = 0; j < currentRow.length; j++) {
+        const char = currentRow[j];
         if (char === '"') inQuote = !inQuote;
-        else if (char === ',' && !inQuote) { values.push(cell.trim().replace(/^"|"$/g, '')); cell = ""; }
-        else cell += char;
+        else if (char === ',' && !inQuote) {
+          values.push(cell.trim().replace(/^"|"$/g, ''));
+          cell = "";
+        } else {
+          cell += char;
+        }
       }
       values.push(cell.trim().replace(/^"|"$/g, ''));
 
@@ -42,7 +50,7 @@ export async function POST(req: Request) {
       headers.forEach((h, idx) => { if (h) data[h] = values[idx] || ""; });
 
       const wineId = values[idIdx];
-      if (!wineId) continue; // IDがない行は無視
+      if (!wineId) continue;
 
       const getNum = (key: string) => {
         const val = parseFloat(data[key]);

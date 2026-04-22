@@ -10,25 +10,30 @@ export async function POST(req: Request) {
     
     if (!file || !slug) throw new Error("Missing data");
 
-    const text = await file.text();
-    const rows = text.replace(/\r/g, '').split('\n').filter(row => row.trim());
+    const buffer = await file.arrayBuffer();
+    let text = new TextDecoder("utf-8").decode(buffer);
+    if (text.includes('')) {
+      text = new TextDecoder("shift-jis").decode(buffer);
+    }
+
+    text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const rows = text.split('\n').filter(row => row.trim());
     const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
     
     const db = getRequestContext().env.DB;
     const batchRequests = [];
 
-    // 店舗が存在するかまずチェック
     const store = await db.prepare("SELECT store_email FROM store_configs WHERE slug = ?").bind(slug).first();
-    if (!store) throw new Error(`店舗スラグ「${slug}」が登録されていません。先に店舗設定を作成してください。`);
+    if (!store) throw new Error(`店舗が登録されていません。`);
 
     batchRequests.push(db.prepare(`DELETE FROM store_inventory WHERE store_id = ?`).bind(store.store_email));
 
     for (let i = 1; i < rows.length; i++) {
-      // 引用符対応のパース
       const values: string[] = [];
       let cell = "";
       let inQuote = false;
-      for (const char of rows[i]) {
+      const currentRow = rows[i];
+      for (const char of currentRow) {
         if (char === '"') inQuote = !inQuote;
         else if (char === ',' && !inQuote) { values.push(cell.trim()); cell = ""; }
         else cell += char;
@@ -47,9 +52,9 @@ export async function POST(req: Request) {
           VALUES (?, ?, ?, ?, ?, 1)
         `).bind(
           store.store_email, wineId, 
-          parseInt(data['ボトル価格'] || '0'), 
-          parseInt(data['グラス価格'] || '0'),
-          parseInt(data['在庫数'] || '0')
+          parseInt(data['ボトル価格'] || data['price_bottle'] || '0'), 
+          parseInt(data['グラス価格'] || data['price_glass'] || '0'),
+          parseInt(data['在庫数'] || data['stock'] || '0')
         )
       );
     }

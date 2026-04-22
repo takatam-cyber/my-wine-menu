@@ -11,8 +11,7 @@ export async function middleware(req: NextRequest) {
   // ホワイトリスト
   if (
     pathname === '/' || pathname === '/admin/login' || 
-    pathname === '/admin/register' || pathname === '/api/auth' || 
-    pathname === '/api/auth/register' ||
+    pathname === '/admin/register' || pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/store/config/public') ||
     (pathname === '/api/wines' && searchParams.has('slug'))
   ) {
@@ -27,15 +26,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/admin/login', req.url));
   }
 
-  // ログインユーザーの情報をヘッダーにセット
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-user-email', payload.email);
 
-  return NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
-export const config = {
-  matcher: ['/admin/:path*', '/api/:path*'],
-};
+export const config = { matcher: ['/admin/:path*', '/api/:path*'] };

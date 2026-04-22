@@ -1,21 +1,25 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
+import { getRequestContext } from '@cloudflare/next-on-pages'; // 追加
 import { signJWT } from '../../../lib/auth';
 
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-
-    // 環境変数から取得。未設定時のフォールバックは開発用のみ。
-    const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
-    const ADMIN_PASS = process.env.ADMIN_PASS;
+    
+    // Cloudflareのコンテキストから環境変数を取得
+    const env = getRequestContext().env;
+    const ADMIN_EMAIL = env.ADMIN_EMAIL;
+    const ADMIN_PASS = env.ADMIN_PASS;
 
     if (!ADMIN_EMAIL || !ADMIN_PASS) {
-      return NextResponse.json({ error: "サーバー設定エラー: 環境変数が未設定です。" }, { status: 500 });
+      console.error("Environment variables ADMIN_EMAIL or ADMIN_PASS are not set in Cloudflare Dashboard.");
+      return NextResponse.json({ error: "サーバー設定エラー" }, { status: 500 });
     }
 
     if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
-      const token = await signJWT({ email });
+      // lib/auth.ts も secret を引数で取るように修正が必要（後述）
+      const token = await signJWT({ email }, env.JWT_SECRET || "fallback_secret");
       const response = NextResponse.json({ success: true });
       
       response.cookies.set('auth_token', token, {

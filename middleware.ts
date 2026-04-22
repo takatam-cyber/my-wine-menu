@@ -1,4 +1,3 @@
-// middleware.ts の完全修正版
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyJWT } from './lib/auth';
@@ -21,7 +20,6 @@ export async function middleware(req: NextRequest) {
   }
 
   const token = req.cookies.get('auth_token')?.value;
-  // トークンの「存在」と「有効性」の両方をチェック
   const payload = token ? await verifyJWT(token, secret) : null;
 
   if (!payload) {
@@ -29,9 +27,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/admin/login', req.url));
   }
 
-  // ログインユーザーのアドレスをヘッダーにセットしてAPIで使えるようにする
-  const response = NextResponse.next();
-  return response;
+  // 【重要】ログインユーザーのメールアドレスをヘッダーにセットしてAPIに渡す
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-user-email', payload.email);
+
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export const config = {

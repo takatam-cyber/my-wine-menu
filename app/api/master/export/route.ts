@@ -4,29 +4,26 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function GET() {
   try {
-    const db = getRequestContext().env.DB;
-    const { results } = await db.prepare("SELECT * FROM wines_master").all();
+    const db = (getRequestContext() as any).env.DB;
+    const { results } = await db.prepare("SELECT * FROM wines_master ORDER BY id ASC").all();
 
     if (!results || results.length === 0) throw new Error("データがありません");
 
-    // CSVヘッダーの作成
     const headers = Object.keys(results[0]);
     const csvRows = [headers.join(',')];
 
-    // データの正規化（カンマや改行の処理）
     for (const row of results as any[]) {
       const values = headers.map(h => {
         const val = row[h] === null ? "" : String(row[h]);
-        return `"${val.replace(/"/g, '""')}"`; // 引用符で囲み、内部の引用符をエスケープ
+        return `"${val.replace(/"/g, '""')}"`;
       });
       csvRows.push(values.join(','));
     }
 
-    const csvString = csvRows.join('\n');
-    return new Response(csvString, {
+    return new Response(csvRows.join('\n'), {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="current_wine_master.csv"'
+        'Content-Disposition': 'attachment; filename="wine_master_all.csv"'
       }
     });
   } catch (e: any) {

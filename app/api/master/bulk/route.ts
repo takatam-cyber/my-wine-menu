@@ -10,23 +10,14 @@ export async function POST(req: Request) {
 
     let text = await file.text();
     
-    // 【対策1】BOM（目に見えないゴミ文字）と改行コードを完全に除去
+    // BOM除去と改行正規化（プロの基本処理）
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // 【対策2】ヘッダーのクレンジング
-    // Geminiのソースタグ や引用符、空白を徹底的に消す
-    const headers = rows[0].split(',').map(h => 
-      h.replace(/\/gi, '').replace(/["']/g, '').trim()
-    );
-
-    // 【対策3】「ID」列を大文字小文字・位置を問わず特定
-    const idIdx = headers.findIndex(h => h.toUpperCase() === "ID");
-    if (idIdx === -1) {
-      throw new Error(`「ID」という名前の列が見つかりません。認識したヘッダー: ${headers.join(' / ')}`);
-    }
-
+    // ヘッダーをすべて小文字で取得（表記ゆれ防止）
+    const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+    
     const db = getRequestContext().env.DB;
     const batch = [];
 
@@ -45,10 +36,9 @@ export async function POST(req: Request) {
       const data: any = {};
       headers.forEach((h, idx) => { if (h) data[h] = values[idx] || ""; });
 
-      const wineId = values[idIdx]; // ID列の値を直接使う
-      if (!wineId) continue;
+      // IDがなければスキップ
+      if (!data.id) continue;
 
-      const isPriority = (data['仕入先'] || '').includes('ピーロート') ? 1 : 0;
       const getNum = (key: string) => {
         const val = parseFloat(data[key]);
         return isNaN(val) ? 0 : val;
@@ -63,16 +53,16 @@ export async function POST(req: Request) {
             aroma_intensity, complexity, finish, oak
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
-            name_jp=excluded.name_jp, ai_explanation=excluded.ai_explanation,
+            name_jp=excluded.name_jp, name_en=excluded.name_en, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
             sweetness=excluded.sweetness, body=excluded.body, acidity=excluded.acidity
         `).bind(
-          wineId, data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
-          data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
-          data['アルコール'], data['AI解説'], data['メニュー用短文'], data['ペアリング'],
-          data['香りの特徴'], data['タグ'], data['画像URL'], isPriority,
-          getNum('甘味'), getNum('ボディ'), getNum('酸味'), getNum('渋み'),
-          getNum('香り強'), getNum('複雑性'), getNum('余韻'), getNum('樽感')
+          data.id, data.name_jp, data.name_en, data.country, data.region, data.grape, 
+          data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 
+          data.menu_short, data.pairing, data.aroma_features, data.tags, data.image_url,
+          (data.supplier || "").includes('ピーロート') ? 1 : 0,
+          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins'),
+          getNum('aroma_intensity'), getNum('complexity'), getNum('finish'), getNum('oak')
         )
       );
     }

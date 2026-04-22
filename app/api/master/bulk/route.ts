@@ -1,3 +1,4 @@
+// app/api/master/bulk/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -11,30 +12,26 @@ export async function POST(req: Request) {
     const buffer = await file.arrayBuffer();
     let text = new TextDecoder("utf-8").decode(buffer);
 
-    // 文字化け（置換文字 \uFFFD）が含まれる場合はShift-JISで再試行
+    // Shift-JIS (Excel) 対応
     if (text.includes('\uFFFD')) {
       text = new TextDecoder("shift-jis").decode(buffer);
     }
     
-    // BOM削除と改行コード統一
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // ヘッダーのクレンジング
     const headers = rows[0].split(',').map(h => 
       h.replace(/["']/g, '').trim().toLowerCase()
     );
     
-    const db = getRequestContext().env.DB;
+    const db = (getRequestContext() as any).env.DB;
     const batch = [];
     const idIdx = headers.findIndex(h => h === "id");
-    if (idIdx === -1) throw new Error("必須列「id」が見つかりません。");
 
     for (let i = 1; i < rows.length; i++) {
       const values: string[] = [];
-      let cell = "";
-      let inQuote = false;
+      let cell = "", inQuote = false;
       const currentRow = rows[i];
       
       for (let j = 0; j < currentRow.length; j++) {
@@ -56,6 +53,9 @@ export async function POST(req: Request) {
         return isNaN(val) ? 0 : val;
       };
 
+      // 優先度判別
+      const isPriority = (data.id.startsWith('P-') || data.is_priority == "1") ? 1 : 0;
+
       batch.push(
         db.prepare(`
           INSERT INTO wines_master (
@@ -64,14 +64,20 @@ export async function POST(req: Request) {
             image_url, is_priority, sweetness, body, acidity, tannins
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
-            name_jp=excluded.name_jp, name_en=excluded.name_en, ai_explanation=excluded.ai_explanation,
-            image_url=excluded.image_url, is_priority=excluded.is_priority,
-            sweetness=excluded.sweetness, body=excluded.body, acidity=excluded.acidity
+            name_jp=excluded.name_jp, 
+            name_en=excluded.name_en, 
+            ai_explanation=excluded.ai_explanation,
+            image_url=excluded.image_url, 
+            is_priority=excluded.is_priority,
+            sweetness=excluded.sweetness, 
+            body=excluded.body, 
+            acidity=excluded.acidity,
+            tannins=excluded.tannins
         `).bind(
           values[idIdx], data.name_jp, data.name_en, data.country, data.region, data.grape, 
           data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 
           data.menu_short, data.pairing, data.aroma_features, data.tags, data.image_url,
-          (data.id.startsWith('P-') || data.is_priority == "1") ? 1 : 0, // IDプレフィックスやフラグで判別
+          isPriority,
           getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins')
         )
       );

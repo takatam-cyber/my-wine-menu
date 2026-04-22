@@ -50,31 +50,31 @@ function SettingsForm() {
             <div className="p-5 bg-slate-900 rounded-3xl text-white shadow-xl"><Store size={36}/></div>
             <div>
               <h1 className="text-3xl font-black tracking-tight">{editSlug ? 'Edit Store' : 'Add Store'}</h1>
-              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-1">顧客店舗の設定</p>
+              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">店舗プロファイルの設定</p>
             </div>
           </div>
           <form onSubmit={handleSave} className="space-y-10">
             <div className="space-y-3">
-              <label className="text-[11px] font-black text-slate-400 ml-5">店舗名</label>
-              <input type="text" required placeholder="例：ピーロート日比谷" className="w-full p-6 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 font-bold outline-none shadow-inner" value={name} onChange={e => setName(e.target.value)} />
+              <label className="text-[11px] font-black text-slate-400 ml-5 uppercase tracking-widest">店舗名</label>
+              <input type="text" required placeholder="例：ピーロート日比谷" className="w-full p-6 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 font-bold outline-none shadow-inner transition-all text-slate-900" value={name} onChange={e => setName(e.target.value)} />
             </div>
             <div className="space-y-3">
-              <label className="text-[11px] font-black text-slate-400 ml-5">URLスラグ（半角英数字）</label>
+              <label className="text-[11px] font-black text-slate-400 ml-5 uppercase tracking-widest">URLスラグ（半角英数字）</label>
               <div className="relative group">
                 <Globe className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20}/>
-                <input type="text" required disabled={!!editSlug} placeholder="hibiya-pieroth" className={`w-full p-6 pl-16 rounded-2xl border-2 border-transparent font-bold shadow-inner ${editSlug ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-50 focus:border-amber-500'}`} value={slug} onChange={e => setSlug(e.target.value)} />
+                <input type="text" required disabled={!!editSlug} placeholder="hibiya-pieroth" className={`w-full p-6 pl-16 rounded-2xl border-2 border-transparent font-bold shadow-inner transition-all ${editSlug ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-50 focus:border-amber-500 focus:bg-white text-slate-900'}`} value={slug} onChange={e => setSlug(e.target.value)} />
               </div>
             </div>
             <div className="space-y-3">
-              <label className="text-[11px] font-black text-slate-400 ml-5">テーマカラー</label>
+              <label className="text-[11px] font-black text-slate-400 ml-5 uppercase tracking-widest">テーマカラー</label>
               <div className="flex gap-5 items-center bg-slate-50 p-6 rounded-2xl shadow-inner">
                 <Palette className="text-slate-300" size={28}/>
                 <input type="color" className="w-14 h-14 rounded-xl cursor-pointer bg-transparent border-none" value={color} onChange={e => setColor(e.target.value)} />
                 <span className="font-mono font-black text-lg text-slate-700">{color.toUpperCase()}</span>
               </div>
             </div>
-            <button type="submit" disabled={loading} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl shadow-2xl hover:bg-amber-500 transition-all flex items-center justify-center gap-4">{loading ? <Loader2 className="animate-spin" /> : <><Save size={24}/> {editSlug ? '更新する' : '登録する'}</>}</button>
-            {status && <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-4 font-bold border-2 border-emerald-100 animate-bounce"><CheckCircle2 size={24}/> 保存完了</div>}
+            <button type="submit" disabled={loading} className="w-full py-6 bg-slate-900 text-white rounded-[2rem] font-black text-xl shadow-2xl hover:bg-amber-500 hover:text-black transition-all flex items-center justify-center gap-4">{loading ? <Loader2 className="animate-spin" /> : <><Save size={24}/> {editSlug ? '設定を更新する' : '店舗を新規登録する'}</>}</button>
+            {status && <div className="p-6 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center gap-4 font-bold border-2 border-emerald-100 animate-bounce"><CheckCircle2 size={24}/> 保存が完了しました</div>}
           </form>
         </div>
       </div>

@@ -8,26 +8,38 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     if (!file) throw new Error("ファイルが見つかりません。");
 
-    const text = await file.text();
-    // 行分割（空行除外）
-    const rows = text.split(/\r?\n/).filter(line => line.trim());
-    if (rows.length < 2) throw new Error("CSVにデータ行がありません。");
-
-    // ヘッダーのクレンジング（等の除去）
-    const headers = rows[0].split(',').map(h => 
-      h.trim().replace(/^"|"$/g, '').replace(/^\\s*/, '')
-    );
+    let text = await file.text();
     
+    // 【対策1】BOM（目に見えないゴミ）や特殊な改行を徹底除去
+    text = text.replace(/^\uFEFF/, '').replace(/\r/g, '');
+    const rows = text.split('\n').filter(line => line.trim());
+    if (rows.length < 2) throw new Error("CSVに有効なデータがありません。");
+
+    // 【対策2】ヘッダーの「超」クレンジング
+    // などのタグ除去、前後の空白除去、ダブルクォート除去
+    const rawHeaders = rows[0].split(',');
+    const headers = rawHeaders.map(h => 
+      h.trim()
+       .replace(/^"|"$/g, '')
+       .replace(/^\\s*/i, '') // 大文字小文字問わず除去
+       .trim()
+    );
+
+    // デバッグ用：システムが認識したヘッダー名をログに出す
+    console.log("Parsed Headers:", headers);
+
     const db = getRequestContext().env.DB;
     const batch = [];
 
     for (let i = 1; i < rows.length; i++) {
-      // プロ仕様のCSV行パース（空フィールドを正確に保持）
+      // 【対策3】引用符内のカンマを保護しながら分割するプロ仕様パサー
       const values: string[] = [];
       let cell = "";
       let inQuote = false;
-      for (let j = 0; j < rows[i].length; j++) {
-        const char = rows[i][j];
+      const currentRow = rows[i];
+      
+      for (let j = 0; j < currentRow.length; j++) {
+        const char = currentRow[j];
         if (char === '"') {
           inQuote = !inQuote;
         } else if (char === ',' && !inQuote) {
@@ -37,20 +49,24 @@ export async function POST(req: Request) {
           cell += char;
         }
       }
-      values.push(cell.trim().replace(/^"|"$/g, '')); // 最後の列を追加
+      values.push(cell.trim().replace(/^"|"$/g, ''));
 
+      // データのマッピング
       const data: any = {};
       headers.forEach((h, idx) => {
-        data[h] = values[idx] || "";
+        if (h) data[h] = values[idx] || "";
       });
 
-      // 必須の「ID」が空ならスキップ
-      if (!data['ID']) {
-        console.warn(`Row ${i}: ID missing. Data:`, data);
-        continue;
+      // 【対策4】「ID」というキーを大文字小文字・空白問わず探し出す
+      const idKey = Object.keys(data).find(k => k.toUpperCase().trim() === "ID");
+      const wineId = idKey ? data[idKey] : null;
+
+      if (!wineId) {
+        // エラー詳細を具体的に投げる
+        throw new Error(`Row ${i} でIDが見つかりません。ヘッダー名を確認してください。認識中のヘッダー: ${headers.join('/')}`);
       }
 
-      const isPriority = data['仕入先']?.includes('ピーロート') ? 1 : 0;
+      const isPriority = (data['仕入先'] || '').includes('ピーロート') ? 1 : 0;
       const getNum = (key: string) => {
         const val = parseFloat(data[key]);
         return isNaN(val) ? 0 : val;
@@ -72,7 +88,7 @@ export async function POST(req: Request) {
             aroma_intensity=excluded.aroma_intensity, complexity=excluded.complexity,
             finish=excluded.finish, oak=excluded.oak
         `).bind(
-          data['ID'], data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
+          wineId, data['ワイン名(日)'], data['ワイン名(英)'], data['生産国'],
           data['地域'], data['主要品種'], data['色'], data['タイプ'], data['ヴィンテージ'],
           data['アルコール'], data['AI解説'], data['メニュー用短文'], data['ペアリング'],
           data['香りの特徴'], data['タグ'], data['画像URL'], isPriority,
@@ -82,13 +98,12 @@ export async function POST(req: Request) {
       );
     }
 
-    if (batch.length === 0) {
-      return NextResponse.json({ error: "有効なデータ（ID列あり）が1件も見つかりませんでした。CSVの形式を確認してください。" }, { status: 400 });
-    }
+    if (batch.length === 0) throw new Error("取り込み可能なデータが0件です。");
 
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {
+    console.error("Bulk Import Fatal Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

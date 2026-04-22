@@ -8,12 +8,21 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     if (!file) throw new Error("CSVファイルが選択されていません。");
 
-    let text = await file.text();
-    // BOM除去と改行正規化
+    // 【重要】file.text()を使わず、バイナリとして読み込む
+    const buffer = await file.arrayBuffer();
+    let text = new TextDecoder("utf-8").decode(buffer);
+
+    // デコード結果に置換文字()が含まれる場合、Shift-JISとして再デコードを試みる
+    if (text.includes('')) {
+      text = new TextDecoder("shift-jis").decode(buffer);
+    }
+    
+    // 改行正規化とBOM除去
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
+    if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // 【ビルドエラー修正】正規表現を修正し、余計なタグを除去
+    // ヘッダーのクレンジング
     const headers = rows[0].split(',').map(h => 
       h.replace(/【\d+†source】/gi, '').replace(/["']/g, '').trim().toLowerCase()
     );
@@ -22,21 +31,24 @@ export async function POST(req: Request) {
     const batch = [];
     const idIdx = headers.findIndex(h => h === "id");
 
+    if (idIdx === -1) throw new Error(`「id」列が見つかりません。`);
+
     for (let i = 1; i < rows.length; i++) {
       const values: string[] = [];
       let cell = "";
       let inQuote = false;
       const currentRow = rows[i];
       
+      // 引用符対応のCSVパース
       for (let j = 0; j < currentRow.length; j++) {
         const char = currentRow[j];
         if (char === '"') inQuote = !inQuote;
         else if (char === ',' && !inQuote) {
-          values.push(cell.trim().replace(/^"|"$/g, ''));
+          values.push(cell.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
           cell = "";
         } else { cell += char; }
       }
-      values.push(cell.trim().replace(/^"|"$/g, ''));
+      values.push(cell.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
 
       const data: any = {};
       headers.forEach((h, idx) => { if (h) data[h] = values[idx] || ""; });
@@ -49,7 +61,7 @@ export async function POST(req: Request) {
         return isNaN(val) ? 0 : val;
       };
 
-      // 【戦略ロジック】サプライヤー名に「ピーロート」が入っていれば強制的に優先
+      // ピーロート等の自社商品を優先フラグ立て
       const isPriority = (data['supplier'] || "").includes('ピーロート') ? 1 : 0;
 
       batch.push(
@@ -60,8 +72,14 @@ export async function POST(req: Request) {
             image_url, is_priority, sweetness, body, acidity, tannins
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
-            name_jp=excluded.name_jp, is_priority=excluded.is_priority,
-            sweetness=excluded.sweetness, body=excluded.body, acidity=excluded.acidity
+            name_jp=excluded.name_jp, 
+            name_en=excluded.name_en,
+            ai_explanation=excluded.ai_explanation,
+            is_priority=excluded.is_priority,
+            sweetness=excluded.sweetness,
+            body=excluded.body,
+            acidity=excluded.acidity,
+            tannins=excluded.tannins
         `).bind(
           wineId, data.name_jp, data.name_en, data.country, data.region, data.grape, 
           data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 

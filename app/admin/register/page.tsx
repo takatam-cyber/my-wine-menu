@@ -32,7 +32,7 @@ export default function RegisterPage() {
         <form onSubmit={handleRequest} className="space-y-4">
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
-            <input type="email" required placeholder="takatam@pieroth.jp" className="w-full p-4 pl-12 bg-slate-800 rounded-xl border border-white/5 focus:border-amber-500 outline-none font-bold" value={email} onChange={e => setEmail(e.target.value)} />
+            <input type="email" required placeholder="e-mail" className="w-full p-4 pl-12 bg-slate-800 rounded-xl border border-white/5 focus:border-amber-500 outline-none font-bold" value={email} onChange={e => setEmail(e.target.value)} />
           </div>
           <button type="submit" disabled={loading} className="w-full py-4 bg-white text-slate-950 rounded-xl font-black flex items-center justify-center gap-2 hover:bg-amber-500 transition-all">
             {loading ? <Loader2 className="animate-spin" /> : "パスワードを発行する"}

@@ -52,7 +52,7 @@ export default function MasterAdmin() {
             <ol className="list-decimal ml-5 space-y-2 font-bold opacity-80">
               <li>右上の「テンプレートをDL」からCSVを取得</li>
               <li>2行目以降にデータを貼り付け</li>
-              <li>CSV形式で保存して、下の「ファイル選択」からアップロード</li>
+              <li>保存して、下の「ファイル選択」からアップロード</li>
             </ol>
           </div>
           <div className="border-4 border-dashed rounded-[2.5rem] p-12 text-center bg-slate-50/50 hover:border-amber-200 transition-colors">

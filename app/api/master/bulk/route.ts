@@ -8,28 +8,28 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     if (!file) throw new Error("CSVファイルが選択されていません。");
 
-    // バイナリとして読み込む
     const buffer = await file.arrayBuffer();
     let text = new TextDecoder("utf-8").decode(buffer);
 
-    // 文字化け（置換文字 \uFFFD）が含まれる場合はShift-JISでデコードし直す
+    // 文字化け（置換文字 \uFFFD）が含まれる場合はShift-JISで再試行
     if (text.includes('\uFFFD')) {
       text = new TextDecoder("shift-jis").decode(buffer);
     }
     
+    // BOM削除と改行コード統一
     text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const rows = text.split('\n').filter(line => line.trim());
     if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
 
-    // ヘッダーのクリーニング（ビルドエラーを修正）
+    // ヘッダーのクレンジング
     const headers = rows[0].split(',').map(h => 
-      h.replace(/【\d+†source】/gi, '').replace(/["']/g, '').trim().toLowerCase()
+      h.replace(/["']/g, '').trim().toLowerCase()
     );
     
     const db = getRequestContext().env.DB;
     const batch = [];
     const idIdx = headers.findIndex(h => h === "id");
-    if (idIdx === -1) throw new Error("「id」列が見つかりません。");
+    if (idIdx === -1) throw new Error("必須列「id」が見つかりません。");
 
     for (let i = 1; i < rows.length; i++) {
       const values: string[] = [];
@@ -61,9 +61,8 @@ export async function POST(req: Request) {
           INSERT INTO wines_master (
             id, name_jp, name_en, country, region, grape, color, type, vintage, 
             alcohol, ai_explanation, menu_short, pairing, aroma_features, tags, 
-            image_url, is_priority, sweetness, body, acidity, tannins, 
-            aroma_intensity, complexity, finish, oak
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            image_url, is_priority, sweetness, body, acidity, tannins
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(id) DO UPDATE SET
             name_jp=excluded.name_jp, name_en=excluded.name_en, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
@@ -72,9 +71,8 @@ export async function POST(req: Request) {
           values[idIdx], data.name_jp, data.name_en, data.country, data.region, data.grape, 
           data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 
           data.menu_short, data.pairing, data.aroma_features, data.tags, data.image_url,
-          (data.supplier || "").includes('ピーロート') ? 1 : 0,
-          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins'),
-          getNum('aroma_intensity'), getNum('complexity'), getNum('finish'), getNum('oak')
+          (data.id.startsWith('P-') || data.is_priority == "1") ? 1 : 0, // IDプレフィックスやフラグで判別
+          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins')
         )
       );
     }

@@ -6,19 +6,16 @@ import { signJWT } from '../../../lib/auth';
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-    const env = getRequestContext().env; // これで設定値を取得
+    const env = getRequestContext().env;
 
-    // ダッシュボードに設定した「ADMIN_EMAIL」「ADMIN_PASS」を直接参照
-    const ADMIN_EMAIL = env.ADMIN_EMAIL;
-    const ADMIN_PASS = env.ADMIN_PASS;
+    // 1. ダッシュボードの設定値を優先、なければコード内の値を使用
+    const ADMIN_EMAIL = env.ADMIN_EMAIL || "takatam@pieroth.jp";
+    const ADMIN_PASS = env.ADMIN_PASS || "19770912";
+    const JWT_SECRET = env.JWT_SECRET || "YOUR_SUPER_SECRET_KEY_2026";
 
-    if (!ADMIN_EMAIL || !ADMIN_PASS) {
-      return NextResponse.json({ error: "サーバー側で環境変数が読み込めていません。設定を確認してください。" }, { status: 500 });
-    }
-
+    // 2. 厳格な比較
     if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
-      // 署名にもダッシュボードの秘密鍵を使用
-      const token = await signJWT({ email }, env.JWT_SECRET);
+      const token = await signJWT({ email }, JWT_SECRET);
       const response = NextResponse.json({ success: true });
       
       response.cookies.set('auth_token', token, {
@@ -31,8 +28,8 @@ export async function POST(req: Request) {
       return response;
     }
 
-    return NextResponse.json({ error: "認証に失敗しました。メールアドレスまたはパスワードが正しくありません。" }, { status: 401 });
+    return NextResponse.json({ error: "認証失敗" }, { status: 401 });
   } catch (e: any) {
-    return NextResponse.json({ error: "システムエラーが発生しました。" }, { status: 500 });
+    return NextResponse.json({ error: "Server Error" }, { status: 500 });
   }
 }

@@ -9,11 +9,11 @@ export async function POST(req: Request) {
     if (!file) throw new Error("ファイルが見つかりません。");
 
     const text = await file.text();
-    // 改行コードの差異を吸収して行分割
+    // 行分割（空行除外）
     const rows = text.split(/\r?\n/).filter(line => line.trim());
-    if (rows.length < 2) throw new Error("CSVデータが不足しています。");
+    if (rows.length < 2) throw new Error("CSVにデータ行がありません。");
 
-    // ヘッダーのクレンジング（Geminiが付与する などを除去）
+    // ヘッダーのクレンジング（等の除去）
     const headers = rows[0].split(',').map(h => 
       h.trim().replace(/^"|"$/g, '').replace(/^\\s*/, '')
     );
@@ -22,31 +22,39 @@ export async function POST(req: Request) {
     const batch = [];
 
     for (let i = 1; i < rows.length; i++) {
-      // 引用符内のカンマに対応した高度なCSVパース
+      // プロ仕様のCSV行パース（空フィールドを正確に保持）
       const values: string[] = [];
-      let current = "";
-      let inQuotes = false;
-      for (const char of rows[i]) {
-        if (char === '"') inQuotes = !inQuotes;
-        else if (char === ',' && !inQuotes) {
-          values.push(current.trim());
-          current = "";
-        } else current += char;
+      let cell = "";
+      let inQuote = false;
+      for (let j = 0; j < rows[i].length; j++) {
+        const char = rows[i][j];
+        if (char === '"') {
+          inQuote = !inQuote;
+        } else if (char === ',' && !inQuote) {
+          values.push(cell.trim().replace(/^"|"$/g, ''));
+          cell = "";
+        } else {
+          cell += char;
+        }
       }
-      values.push(current.trim());
+      values.push(cell.trim().replace(/^"|"$/g, '')); // 最後の列を追加
 
       const data: any = {};
       headers.forEach((h, idx) => {
-        data[h] = values[idx]?.replace(/^"|"$/g, '') || "";
+        data[h] = values[idx] || "";
       });
 
-      if (!data['ID']) continue;
+      // 必須の「ID」が空ならスキップ
+      if (!data['ID']) {
+        console.warn(`Row ${i}: ID missing. Data:`, data);
+        continue;
+      }
 
-      // 自社輸入品（ピーロート）の判定
       const isPriority = data['仕入先']?.includes('ピーロート') ? 1 : 0;
-
-      // 数値データへの変換（REAL型として保存するため）
-      const getNum = (key: string) => parseFloat(data[key] || "0");
+      const getNum = (key: string) => {
+        const val = parseFloat(data[key]);
+        return isNaN(val) ? 0 : val;
+      };
 
       batch.push(
         db.prepare(`
@@ -60,7 +68,7 @@ export async function POST(req: Request) {
             name_jp=excluded.name_jp, ai_explanation=excluded.ai_explanation,
             image_url=excluded.image_url, is_priority=excluded.is_priority,
             pairing=excluded.pairing, sweetness=excluded.sweetness, body=excluded.body,
-            acidity=excluded.acidity, tannins=excluded.tannins, 
+            acidity=excluded.acidity, tannins=excluded.tannins,
             aroma_intensity=excluded.aroma_intensity, complexity=excluded.complexity,
             finish=excluded.finish, oak=excluded.oak
         `).bind(
@@ -74,13 +82,13 @@ export async function POST(req: Request) {
       );
     }
 
-    if (batch.length === 0) throw new Error("有効なデータが見つかりませんでした。");
+    if (batch.length === 0) {
+      return NextResponse.json({ error: "有効なデータ（ID列あり）が1件も見つかりませんでした。CSVの形式を確認してください。" }, { status: 400 });
+    }
 
-    // D1のバッチ処理で一括実行
     await db.batch(batch);
     return NextResponse.json({ success: true, count: batch.length });
   } catch (e: any) {
-    console.error("Bulk Import Error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

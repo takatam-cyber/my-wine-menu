@@ -1,55 +1,36 @@
-// app/api/translate/route.ts
+// app/api/store/inventory/update/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
-/**
- * Cloudflare Workers AI を使用してテキストを一括翻訳するAPI
- */
 export async function POST(req: Request) {
   try {
-    const { texts, targetLang } = await req.json();
-    const env = (getRequestContext() as any).env;
+    const { slug, wineId, price_bottle, stock } = await req.json();
+    const db = (getRequestContext() as any).env.DB;
 
-    if (!texts || !Array.isArray(texts) || texts.length === 0) {
-      return NextResponse.json({ translations: [] });
+    // 特定のフィールドが送信された場合のみ更新する
+    let query = "UPDATE store_inventory SET ";
+    const params: any[] = [];
+    const sets: string[] = [];
+
+    if (price_bottle !== undefined) {
+      sets.push("price_bottle = ?");
+      params.push(price_bottle);
+    }
+    if (stock !== undefined) {
+      sets.push("stock = ?");
+      params.push(stock);
     }
 
-    // Llama 3.1 を使用して、文脈を維持したまま正確な翻訳を行う
-    // 構造化データとして返却させるためのプロンプト
-    const prompt = `
-      You are a professional sommelier and translator. 
-      Translate the following wine descriptions into ${targetLang === 'en' ? 'elegant English' : 'natural Japanese'}.
-      Maintain the professional tone and wine-specific terminology.
-      
-      Return the results as a JSON array of strings in the exact same order as the input.
-      Input texts: ${JSON.stringify(texts)}
-    `;
+    if (sets.length === 0) return NextResponse.json({ success: true });
 
-    const res: any = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-      messages: [
-        { role: 'system', content: 'You only output JSON. Return a simple array of translated strings.' },
-        { role: 'user', content: prompt }
-      ],
-      response_format: { type: 'json_object' }
-    });
+    query += sets.join(", ") + " WHERE store_slug = ? AND wine_id = ?";
+    params.push(slug, wineId);
 
-    // AIのレスポンスから配列を抽出
-    // AIモデルによってはレスポンス形式が微妙に異なる場合があるため、パースを試みる
-    let translations = [];
-    try {
-      const parsed = typeof res.response === 'string' ? JSON.parse(res.response) : res;
-      // 配列を直接探す
-      translations = Array.isArray(parsed) ? parsed : (parsed.translations || Object.values(parsed)[0]);
-    } catch (e) {
-      // フォールバック: パースに失敗した場合は、単純なレスポンスとして処理
-      console.error("Translation parsing failed:", e);
-      translations = texts.map(() => "Translation unavailable");
-    }
+    await db.prepare(query).bind(...params).run();
 
-    return NextResponse.json({ translations });
+    return NextResponse.json({ success: true });
   } catch (e: any) {
-    console.error("Translation API error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

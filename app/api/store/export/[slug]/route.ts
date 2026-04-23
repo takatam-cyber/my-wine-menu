@@ -3,46 +3,59 @@ export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
+/**
+ * 店舗別の在庫CSVエクスポート（マスターの全項目を維持しつつ、店舗価格・在庫を反映）
+ */
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
     const db = (getRequestContext() as any).env.DB;
 
-    // store_inventoryにマスターデータを紐付けて全項目取得
+    // 店舗在庫とマスターをJOINして、全項目をマスターテンプレートの形式で取得
     const { results } = await db.prepare(`
       SELECT 
-        m.id, m.name_jp, m.country, 
-        i.price_bottle, i.price_glass, i.stock
-      FROM store_inventory i
-      JOIN wines_master m ON i.wine_id = m.id
-      WHERE i.store_slug = ?
+        m.*,
+        i.price_bottle as store_price_bottle,
+        i.price_glass as store_price_glass,
+        i.stock as store_stock
+      FROM wines_master m
+      LEFT JOIN store_inventory i ON m.id = i.wine_id AND i.store_slug = ?
       ORDER BY m.id ASC
     `).bind(slug).all();
 
-    if (!results || results.length === 0) {
-      return NextResponse.json({ error: "在庫データがありません。" }, { status: 404 });
-    }
+    const headers = [
+      "id", "name_jp", "name_en", "country", "region", "grape", "color", "type", 
+      "vintage", "alcohol", "price_bottle", "price_glass", "cost", "stock", 
+      "ideal_stock", "supplier", "storage", "ai_explanation", "menu_short", 
+      "pairing", "sweetness", "body", "acidity", "tannins", "aroma_intensity", 
+      "complexity", "finish", "oak", "aroma_features", "tags", "best_drinking", 
+      "image_url", "visible", "filename"
+    ];
 
-    const headers = ["id", "name_jp", "country", "price_bottle", "price_glass", "stock"];
     const csvRows = [headers.join(',')];
 
     (results as any[]).forEach(row => {
       const values = headers.map(h => {
-        const val = row[h] === null ? "" : String(row[h]);
-        return `"${val.replace(/"/g, '""')}"`; // CSVエスケープ
+        let val = "";
+        // 店舗固有の値を優先（存在する場合）
+        if (h === "price_bottle") val = String(row.store_price_bottle ?? row.price_bottle ?? 0);
+        else if (h === "price_glass") val = String(row.store_price_glass ?? row.price_glass ?? 0);
+        else if (h === "stock") val = String(row.store_stock ?? row.stock ?? 0);
+        else if (h === "visible") val = row.is_priority === 1 ? "ON" : "OFF";
+        else val = row[h] === null || row[h] === undefined ? "" : String(row[h]);
+
+        return `"${val.replace(/"/g, '""')}"`;
       });
       csvRows.push(values.join(','));
     });
 
-    // 日本のExcelのためにBOM(Byte Order Mark)を付与したUTF-8
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const csvContent = csvRows.join('\r\n');
-    const csvArray = new TextEncoder().encode(csvContent);
-    const blob = new Uint8Array(bom.length + csvArray.length);
-    blob.set(bom);
-    blob.set(csvArray, bom.length);
+    const csvArray = new TextEncoder().encode(csvRows.join('\r\n'));
+    const responseArray = new Uint8Array(bom.length + csvArray.length);
+    responseArray.set(bom);
+    responseArray.set(csvArray, bom.length);
 
-    return new Response(blob, {
+    return new Response(responseArray, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="inventory_${slug}.csv"`

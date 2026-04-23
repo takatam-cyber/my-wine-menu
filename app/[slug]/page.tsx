@@ -1,253 +1,672 @@
-// app/[slug]/page.tsx
+// app/admin/page.tsx
 "use client";
+
 export const runtime = 'edge';
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Sparkles, X, Send, Loader2, Wine, Info, Star, 
-  Filter, ArrowUpDown, AlertTriangle, ChevronDown
+  Store, Plus, Search, Database, LayoutDashboard, LogOut, 
+  ExternalLink, Settings, QrCode, TrendingUp, X, ChevronRight, 
+  Loader2, ArrowLeft, Download, FileText, Upload, Check, 
+  CheckCircle2, AlertCircle, Save, Palette, Globe, FileSpreadsheet,
+  RefreshCw, Menu, FileDown, History, Wine, MapPin, Calendar,
+  Briefcase
 } from 'lucide-react';
 
 /**
- * PREVIEW MOCK DATA (Fallback)
- */
-const MOCK_WINES = [
-  { id: "1", name_jp: "パスカルトソ CS レゼルヴァ", name_en: "Cabernet Sauvignon Reserva", country: "アルゼンチン", grape: "CS", color: "赤", price_bottle: 5500, ai_explanation: "熟したベリーとバニラの優雅な共演。", is_priority: 1, sweetness: 1, body: 4, acidity: 3, tannins: 4 },
-  { id: "2", name_jp: "パスカルトソ シャルドネ", name_en: "Chardonnay", country: "アルゼンチン", grape: "シャルドネ", color: "白", price_bottle: 2800, ai_explanation: "キレのある酸味が心地よい辛口。", is_priority: 0, sweetness: 1, body: 3, acidity: 4, tannins: 0 }
-];
-
-/**
- * UTILS
+ * =====================================================================
+ * PREVIEW-SAFE HELPERS (Robust URL Handling)
+ * =====================================================================
  */
 const getSafeUrl = (path: string) => {
+  if (!path) return '#';
   if (typeof window === 'undefined') return path;
+  
   try {
     const origin = window.location.origin;
-    if (!origin || origin === 'null' || origin.startsWith('blob:')) return path;
+    if (!origin || origin === 'null' || origin.startsWith('blob:')) {
+      return path.startsWith('/') ? path : `/${path}`;
+    }
     return new URL(path, origin).href;
-  } catch (e) { return path; }
+  } catch (e) {
+    return path;
+  }
+};
+
+const safeNavigate = (path: string) => {
+  if (!path || typeof window === 'undefined') return;
+  const target = getSafeUrl(path);
+  if (target && target !== '#' && target !== '') {
+    window.location.href = target;
+  }
 };
 
 /**
- * Flavor Radar Component
+ * =====================================================================
+ * SUB-COMPONENTS
+ * =====================================================================
  */
-function FlavorRadar({ data }: { data: any }) {
-  const size = 110;
-  const center = size / 2;
-  const scale = (val: number) => (val / 5) * (size / 2.6);
-  const pts = [
-    `${center},${center - scale(data.body || 0)}`,
-    `${center + scale(data.sweetness || 0)},${center}`,
-    `${center},${center + scale(data.tannins || 0)}`,
-    `${center - scale(data.acidity || 0)},${center}`
-  ].join(' ');
+
+// --- 1. 店舗設定 (Store Settings) ---
+function StoreSettingsView({ editSlug, onBack }: { editSlug: string | null, onBack: () => void }) {
+  const [formData, setFormData] = useState({ name: '', slug: '', color: '#b45309' });
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<{type: 'success'|'error', msg: string} | null>(null);
+
+  useEffect(() => {
+    if (editSlug) {
+      setLoading(true);
+      fetch(getSafeUrl(`/api/store/config/public?slug=${editSlug}`))
+        .then(res => res.json())
+        .then(data => setFormData({ 
+          name: data.store_name, 
+          slug: editSlug, 
+          color: data.theme_color || '#b45309' 
+        }))
+        .finally(() => setLoading(false))
+        .catch(() => setLoading(false));
+    }
+  }, [editSlug]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.slug.trim()) return;
+    setLoading(true);
+    setStatus(null);
+    try {
+      const res = await fetch(getSafeUrl('/api/store/config'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          store_name: formData.name, 
+          slug: formData.slug.toLowerCase().trim(), 
+          theme_color: formData.color, 
+          is_edit: !!editSlug 
+        }),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setStatus({ type: 'success', msg: '保存しました。' });
+        setTimeout(onBack, 1000);
+      } else { 
+        setStatus({ type: 'error', msg: result.error || '保存に失敗しました' }); 
+      }
+    } catch (e) { 
+      setStatus({ type: 'error', msg: '通信エラーが発生しました' }); 
+    }
+    setLoading(false);
+  };
 
   return (
-    <div className="relative w-28 h-28 bg-black/40 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 shadow-2xl">
-      <svg width={size} height={size} className="transform rotate-45">
-        <circle cx={center} cy={center} r={size/2.6} fill="none" stroke="white" strokeOpacity="0.05" strokeWidth="0.5" />
-        <line x1={0} y1={center} x2={size} y2={center} stroke="white" strokeOpacity="0.1" />
-        <line x1={center} y1={0} x2={center} y2={size} stroke="white" strokeOpacity="0.1" />
-        <polygon points={pts} fill="rgba(245, 158, 11, 0.5)" stroke="#f59e0b" strokeWidth="1.5" strokeLinejoin="round" />
-      </svg>
-      <div className="absolute inset-0 flex flex-col justify-between p-1.5 text-[8px] font-black text-amber-500/60 uppercase tracking-tighter pointer-events-none">
-        <span className="text-center">ボディ</span>
-        <div className="flex justify-between px-0.5"><span>酸味</span><span>甘味</span></div>
-        <span className="text-center">渋み</span>
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300 pb-20">
+      <div className="flex items-center gap-3 px-2">
+        <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm border border-slate-100 transition-colors active:bg-slate-100">
+          <ArrowLeft size={20}/>
+        </button>
+        <h2 className="text-xl font-black text-slate-800">{editSlug ? '店舗プロフィール編集' : '新規店舗を開設'}</h2>
+      </div>
+      
+      <div className="bg-white rounded-[2.5rem] p-6 md:p-10 shadow-xl border border-slate-50 space-y-8">
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">店舗名称</p>
+            <input 
+              type="text" 
+              required 
+              className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 focus:border-amber-500 font-bold outline-none transition-all" 
+              value={formData.name} 
+              onChange={e => setFormData({...formData, name: e.target.value})} 
+              placeholder="例：レストラン・ピーロート" 
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">URLスラッグ（英数字のみ）</p>
+            <input 
+              type="text" 
+              required 
+              disabled={!!editSlug} 
+              className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 font-bold disabled:opacity-50" 
+              value={formData.slug} 
+              onChange={e => setFormData({...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})} 
+              placeholder="store-id-01" 
+            />
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">メニュー・テーマカラー</p>
+            <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <input 
+                type="color" 
+                className="w-12 h-12 rounded-xl cursor-pointer bg-transparent border-none" 
+                value={formData.color} 
+                onChange={e => setFormData({...formData, color: e.target.value})} 
+              />
+              <span className="font-mono font-bold text-slate-600">{formData.color.toUpperCase()}</span>
+              <div className="ml-auto w-8 h-8 rounded-full shadow-inner" style={{ backgroundColor: formData.color }} />
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-amber-500 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : <><Save size={20}/> 変更を保存</>}
+          </button>
+
+          {status && (
+            <div className={`p-4 rounded-xl font-bold flex items-center justify-center gap-2 text-sm ${
+              status.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+            }`}>
+              {status.type === 'success' ? <CheckCircle2 size={18}/> : <AlertCircle size={18}/>}
+              {status.msg}
+            </div>
+          )}
+        </form>
       </div>
     </div>
   );
 }
 
-export default function PublicMenu({ params }: { params: any }) {
-  const [slug, setSlug] = useState<string | null>(null);
-  const [wines, setWines] = useState<any[]>([]);
-  const [config, setConfig] = useState<any>(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatMsg, setChatMsg] = useState("");
-  const [history, setHistory] = useState<any[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+// --- 2. 在庫管理 (Inventory Manager Internal) ---
+function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => void }) {
+  const [master, setMaster] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<Record<string, any>>({});
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  
-  const [filterColor, setFilterColor] = useState("すべて");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | "none">("none");
+  const [file, setFile] = useState<File | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    const resolve = async () => {
-      let s = (params instanceof Promise) ? (await params).slug : params?.slug;
-      if (!s || s === '[slug]') s = new URLSearchParams(window.location.search).get('slug') || 'demo';
-      setSlug(s);
-    };
-    resolve();
-  }, [params]);
-
-  useEffect(() => {
+  const refresh = async () => {
     if (!slug) return;
-    const fetchAll = async () => {
-      try {
-        const [wRes, cRes] = await Promise.all([
-          fetch(getSafeUrl(`/api/wines?slug=${slug}`)),
-          fetch(getSafeUrl(`/api/store/config/public?slug=${slug}`))
-        ]);
-        if (wRes.ok && cRes.ok) {
-          const wd = await wRes.json();
-          setWines(wd.length > 0 ? wd : MOCK_WINES);
-          setConfig(await cRes.json());
-        } else { setWines(MOCK_WINES); setConfig({ store_name: "PIEROTH SELECTION" }); }
-      } catch (e) { setWines(MOCK_WINES); setConfig({ store_name: "PIEROTH SELECTION" }); }
-      setLoading(false);
-    };
-    fetchAll();
-  }, [slug]);
-
-  const displayWines = useMemo(() => {
-    let result = [...wines];
-    if (filterColor !== "すべて") result = result.filter(w => w.color === filterColor);
-    if (sortOrder === "asc") result.sort((a, b) => (a.price_bottle || 0) - (b.price_bottle || 0));
-    else if (sortOrder === "desc") result.sort((a, b) => (b.price_bottle || 0) - (a.price_bottle || 0));
-    else result.sort((a, b) => (b.is_priority || 0) - (a.is_priority || 0));
-    return result;
-  }, [wines, filterColor, sortOrder]);
-
-  const handleSend = async () => {
-    if (!chatMsg.trim()) return;
-    const newH = [...history, { role: 'user', content: chatMsg }];
-    setHistory(newH); setChatMsg(""); setIsTyping(true);
+    setLoading(true);
     try {
-      const res = await fetch(getSafeUrl('/api/sommelier'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: chatMsg, history: newH, wineList: wines, storeName: config?.store_name })
-      });
-      const d = await res.json();
-      setHistory([...newH, { role: 'assistant', content: d.response }]);
-    } catch (e) { setHistory([...newH, { role: 'assistant', content: "申し訳ございません。ソムリエが席を外しております。" }]); }
-    setIsTyping(false);
+      const [mRes, sRes] = await Promise.all([
+        fetch(getSafeUrl('/api/master/list')),
+        fetch(getSafeUrl(`/api/wines?slug=${slug}`))
+      ]);
+      const mData = await mRes.json();
+      const sData = await sRes.json();
+      setMaster(Array.isArray(mData) ? mData : []);
+      const invMap: any = {};
+      if (Array.isArray(sData)) {
+        sData.forEach((w: any) => { 
+          invMap[w.id] = { active: true, price_bottle: w.price_bottle, stock: w.stock }; 
+        });
+      }
+      setInventory(invMap);
+    } catch (e) {
+      console.error("Fetch Error:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading && !slug) return <div className="min-h-screen bg-black flex items-center justify-center"><Loader2 className="animate-spin text-amber-600" size={48} /></div>;
+  useEffect(() => { refresh(); }, [slug]);
+
+  const handleCsv = async () => {
+    if (!file || !slug) return;
+    setSyncStatus("同期中...");
+    const fd = new FormData(); fd.append('file', file); fd.append('slug', slug);
+    try {
+      const res = await fetch(getSafeUrl('/api/wines/bulk'), { method: 'POST', body: fd });
+      if (res.ok) {
+        setSyncStatus("完了！");
+        setFile(null);
+        refresh();
+      } else {
+        setSyncStatus("失敗");
+      }
+    } catch (e) {
+      setSyncStatus("エラー");
+    }
+    setTimeout(() => setSyncStatus(null), 2000);
+  };
+
+  const filtered = useMemo(() => 
+    master.filter(w => 
+      (w.name_jp || "").toLowerCase().includes(search.toLowerCase()) || 
+      (w.id || "").toLowerCase().includes(search.toLowerCase())
+    ).slice(0, 30),
+    [master, search]
+  );
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white font-sans selection:bg-amber-900 pb-32 overflow-x-hidden">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_top_center,#1a1a1a_0%,#050505_100%)] opacity-70" />
-      
-      {/* Premium Header */}
-      <header className="relative text-center pt-24 pb-16 px-6">
-        <div className="inline-block p-5 bg-amber-500/10 rounded-[2.5rem] mb-8 border border-amber-500/20 shadow-[0_0_60px_rgba(180,83,9,0.15)]">
-          <Wine className="text-amber-500" size={40} />
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300 pb-32">
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm border border-slate-100 active:bg-slate-50 transition-all">
+            <ArrowLeft size={20}/>
+          </button>
+          <div className="min-w-0">
+            <h2 className="text-xl font-black text-slate-800 truncate leading-none">{slug}</h2>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Inventory Control</p>
+          </div>
         </div>
-        <h1 className="text-4xl md:text-6xl font-serif italic tracking-[0.2em] text-amber-50/90 uppercase leading-tight">{config?.store_name || 'LOADING...'}</h1>
-        <div className="w-24 h-[1px] bg-gradient-to-r from-transparent via-amber-600 to-transparent mx-auto mt-10 opacity-50" />
+        <button 
+          onClick={() => window.open(getSafeUrl(`/api/store/export/${slug}`))}
+          className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg active:bg-amber-500 transition-all"
+        >
+          <Download size={20}/>
+        </button>
+      </div>
+
+      <div className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CSV一括更新</span>
+          {syncStatus && <span className="text-xs text-amber-600 font-black animate-pulse">{syncStatus}</span>}
+        </div>
+        <div className="relative h-24 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center bg-slate-50/50 group transition-all active:border-amber-500">
+          <input 
+            type="file" accept=".csv" 
+            onChange={e => setFile(e.target.files?.[0] || null)} 
+            className="absolute inset-0 opacity-0 cursor-pointer" 
+          />
+          <Upload className={`mb-1 ${file ? 'text-amber-500' : 'text-slate-300'}`} size={24}/>
+          <p className="text-[11px] font-bold text-slate-500 px-4 truncate max-w-full">
+            {file ? file.name : '店舗CSVをアップロード'}
+          </p>
+        </div>
+        <button 
+          disabled={!file} 
+          onClick={handleCsv}
+          className="w-full py-4 bg-slate-900 text-white rounded-xl font-black text-sm active:scale-95 disabled:opacity-20 transition-all shadow-md"
+        >
+          メニューに反映
+        </button>
+      </div>
+
+      <div className="sticky top-0 z-20 py-2 bg-slate-50/80 backdrop-blur-md">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+          <input 
+            type="text" placeholder="商品名、IDで絞り込む..." 
+            className="w-full h-14 pl-12 pr-4 bg-white rounded-2xl border border-slate-100 shadow-sm font-bold text-sm outline-none focus:border-amber-500 transition-all"
+            value={search} onChange={e => setSearch(e.target.value)} 
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="animate-spin text-amber-500" size={32} />
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Syncing D1 Database...</p>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {filtered.length === 0 ? (
+            <p className="text-center text-slate-400 text-xs py-10 font-bold">該当する銘柄がありません</p>
+          ) : (
+            filtered.map(w => (
+              <div 
+                key={w.id} 
+                className={`bg-white p-4 rounded-[1.8rem] border-2 flex items-center gap-4 transition-all ${
+                  inventory[w.id]?.active ? 'border-amber-500 shadow-md' : 'border-transparent opacity-60'
+                }`}
+              >
+                <div className="w-12 h-16 bg-slate-50 rounded-lg flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                  <img 
+                    src={w.image_url} 
+                    className="max-h-full object-contain" 
+                    alt="" 
+                    onError={(e:any)=>e.target.style.display='none'} 
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">ID: {w.id}</span>
+                    <span className="text-[8px] font-black text-slate-300 truncate">{w.country}</span>
+                  </div>
+                  <h4 className="font-black text-slate-900 text-sm truncate leading-tight">{w.name_jp}</h4>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-[11px] font-black text-amber-600">¥{(inventory[w.id]?.price_bottle || 0).toLocaleString()}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      Number(inventory[w.id]?.stock) > 0 ? 'bg-slate-100 text-slate-500' : 'bg-red-50 text-red-500'
+                    }`}>
+                      在庫: {inventory[w.id]?.stock || 0}
+                    </span>
+                  </div>
+                </div>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                  inventory[w.id]?.active ? 'bg-amber-500 text-white scale-110 shadow-lg' : 'bg-slate-100 text-slate-200'
+                }`}>
+                  <Check size={20} strokeWidth={4}/>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- 3. マスター管理 (Master Data Manager) ---
+function MasterDataManagerView({ onBack }: { onBack: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const handleImport = async () => {
+    if (!file) return;
+    setLoading(true);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const res = await fetch(getSafeUrl('/api/master/bulk'), { method: 'POST', body: fd });
+      if (res.ok) { setStatus("マスターを更新しました！"); setFile(null); }
+      else { setStatus("エラーが発生しました"); }
+    } catch (e) { setStatus("接続エラー"); }
+    setLoading(false);
+    setTimeout(() => setStatus(null), 3000);
+  };
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300 pb-24 px-2">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm border border-slate-100 active:bg-slate-100 transition-all">
+          <ArrowLeft size={20}/>
+        </button>
+        <h2 className="text-xl font-black text-slate-800">マスターデータ統括</h2>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button 
+          onClick={() => window.open(getSafeUrl('/api/master/export'), '_blank')}
+          className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center gap-3 active:bg-slate-50 transition-all"
+        >
+          <div className="p-4 bg-amber-50 text-amber-600 rounded-2xl shadow-sm"><FileDown size={28}/></div>
+          <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">全銘柄出力</span>
+        </button>
+        <button 
+          onClick={() => window.open(getSafeUrl('/api/master/template'), '_blank')}
+          className="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col items-center gap-3 active:bg-slate-50 transition-all"
+        >
+          <div className="p-4 bg-slate-50 text-slate-400 rounded-2xl shadow-sm"><FileText size={28}/></div>
+          <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">テンプレート</span>
+        </button>
+      </div>
+
+      <div className="bg-white p-8 md:p-12 rounded-[3.5rem] border border-slate-100 shadow-xl text-center space-y-8">
+        <div className="p-6 bg-slate-900 rounded-[2rem] w-20 h-20 flex items-center justify-center mx-auto shadow-2xl rotate-3">
+          <Database size={36} className="text-amber-500" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-2xl font-black text-slate-900">カタログ一括同期</h3>
+          <p className="text-[11px] text-slate-400 font-bold leading-relaxed px-4">
+            インポーター本部の全銘柄データを<br/>CSV形式で最新状態に更新します。
+          </p>
+        </div>
+
+        <div className="relative h-44 border-4 border-dashed border-slate-100 rounded-[2.5rem] flex flex-col items-center justify-center bg-slate-50/50 group active:border-amber-500 active:bg-amber-50 transition-all">
+          <input 
+            type="file" accept=".csv" 
+            className="absolute inset-0 opacity-0 cursor-pointer" 
+            onChange={e => setFile(e.target.files?.[0] || null)} 
+          />
+          <Upload size={40} className={`mb-3 transition-all ${file ? 'text-amber-500 scale-110' : 'text-slate-200'}`} />
+          <p className="text-[11px] font-black text-slate-400 uppercase px-6 truncate max-w-full">
+            {file ? file.name : 'カタログCSVを選択'}
+          </p>
+        </div>
+
+        <button 
+          disabled={!file || loading} 
+          onClick={handleImport}
+          className="w-full h-18 bg-slate-900 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 shadow-xl active:scale-95 disabled:opacity-30 transition-all py-5"
+        >
+          {loading ? <RefreshCw className="animate-spin" size={24}/> : <CheckCircle2 size={24}/>} 
+          {status || 'マスターを全更新'}
+        </button>
+      </div>
+
+      <div className="bg-slate-900 p-6 rounded-[2.5rem] text-white space-y-3 shadow-2xl border border-white/5">
+        <div className="flex items-center gap-2 text-amber-500 font-black text-[10px] uppercase tracking-[0.3em]">
+          <History size={14}/> Operation Caution
+        </div>
+        <p className="text-[11px] font-bold text-white/50 leading-relaxed italic">
+          マスター更新は、既に各店舗メニューに紐づいている商品データにも影響を及ぼします。IDの整合性を確認した上で実行してください。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * =====================================================================
+ * MAIN APP COMPONENT
+ * =====================================================================
+ */
+export default function App() {
+  const [view, setView] = useState<'dashboard' | 'settings' | 'inventory' | 'master'>('dashboard');
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [editSlug, setEditSlug] = useState<string | null>(null);
+  const [stores, setStores] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [qrModal, setQrModal] = useState<{slug: string, name: string} | null>(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(getSafeUrl('/api/store/list'));
+      if (res.ok) {
+        const data = await res.json();
+        setStores(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.warn("D1 Fetching failed in this environment.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch(getSafeUrl('/api/auth/logout'), { method: 'POST' });
+    } catch(e) {}
+    safeNavigate('/admin/login');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-32 font-sans text-slate-900 selection:bg-amber-100 antialiased overflow-x-hidden">
+      {/* Premium Navigation Header */}
+      <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-6 py-5 flex justify-between items-center sticky top-0 z-[100] shadow-sm">
+        <div 
+          className="flex items-center gap-3 cursor-pointer group"
+          onClick={() => { setView('dashboard'); setActiveSlug(null); setEditSlug(null); }}
+        >
+          <div className="p-2 bg-slate-900 text-amber-500 rounded-xl group-active:scale-90 transition-all shadow-lg">
+            <LayoutDashboard size={20} />
+          </div>
+          <h1 className="text-xl font-black italic tracking-tighter flex items-center gap-1">
+            PIEROTH <span className="font-light text-slate-300 text-sm not-italic ml-1">MS</span>
+          </h1>
+        </div>
+        <button 
+          onClick={handleLogout} 
+          className="p-2.5 text-slate-400 hover:text-red-500 active:scale-90 transition-all bg-slate-50 rounded-full"
+        >
+          <LogOut size={22} />
+        </button>
       </header>
 
-      {/* Glassmorphic Controls */}
-      <div className="relative sticky top-0 z-40 bg-[#050505]/60 backdrop-blur-2xl border-y border-white/5 px-4 py-4 mb-12 shadow-2xl">
-        <div className="max-w-2xl mx-auto flex flex-col gap-5">
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <div className="flex items-center px-3 text-amber-500/50"><Filter size={16}/></div>
-            {["すべて", "赤", "白", "ロゼ", "泡"].map(c => (
-              <button key={c} onClick={() => setFilterColor(c)} className={`px-5 py-2.5 rounded-full text-[11px] font-black border transition-all shrink-0 ${filterColor === c ? "bg-amber-600 border-amber-500 text-white shadow-lg" : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>{c}</button>
-            ))}
-          </div>
-          <div className="flex gap-2 border-t border-white/5 pt-4">
-            <div className="flex items-center px-3 text-amber-500/50"><ArrowUpDown size={16}/></div>
-            <button onClick={() => setSortOrder(sortOrder === "asc" ? "none" : "asc")} className={`px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${sortOrder === "asc" ? "bg-amber-600/20 border-amber-500 text-amber-500" : "bg-white/5 border-white/10 text-white/40"}`}>価格の安い順</button>
-            <button onClick={() => setSortOrder(sortOrder === "desc" ? "none" : "desc")} className={`px-4 py-2 rounded-xl text-[10px] font-bold border transition-all ${sortOrder === "desc" ? "bg-amber-600/20 border-amber-500 text-amber-500" : "bg-white/5 border-white/10 text-white/40"}`}>価格の高い順</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Elevated Wine Cards */}
-      <div className="relative max-w-2xl mx-auto space-y-32 py-10 px-6">
-        {displayWines.map(w => (
-          <div key={w.id} className={`group flex flex-col md:flex-row gap-12 items-start transition-all duration-1000 ${w.is_priority ? 'scale-105' : 'opacity-90 hover:opacity-100'}`}>
-            <div className="relative shrink-0 mx-auto md:mx-0">
-               <div className="absolute inset-0 bg-amber-500/10 blur-[80px] rounded-full scale-150 opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-               <div className="relative w-48 h-72 flex items-center justify-center bg-white/[0.03] rounded-[4rem] border border-white/10 overflow-hidden shadow-[0_40px_80px_rgba(0,0,0,0.6)] transition-all group-hover:border-amber-500/40">
-                  <img src={w.image_url} className={`relative w-40 h-64 object-contain transition-all duration-1000 drop-shadow-[0_20px_40px_rgba(0,0,0,0.9)] ${w.is_priority ? 'scale-110' : 'grayscale-[0.15] group-hover:grayscale-0'}`} alt={w.name_jp} onError={(e:any) => e.target.style.display='none'} />
-               </div>
-               {w.is_priority === 1 && (
-                 <div className="absolute -top-6 -left-6 bg-gradient-to-br from-amber-400 to-amber-700 text-black text-[10px] font-black px-5 py-2.5 rounded-full shadow-2xl animate-pulse flex items-center gap-1 border border-white/20">
-                   <Star size={12} fill="currentColor"/> SOMMELIER'S PICK
-                 </div>
-               )}
-               <div className="absolute -bottom-8 -right-8 scale-110 group-hover:scale-125 transition-transform duration-700">
-                  <FlavorRadar data={w} />
-               </div>
+      <main className="max-w-xl mx-auto p-5 md:p-8">
+        {view === 'dashboard' && (
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="flex items-center justify-between px-1 pt-2">
+              <div>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">担当店舗</h2>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-1">Menu Asset Management</p>
+              </div>
+              <button 
+                onClick={() => { setEditSlug(null); setView('settings'); }} 
+                className="w-14 h-14 bg-amber-500 text-white rounded-2xl shadow-[0_10px_30px_rgba(245,158,11,0.4)] flex items-center justify-center active:scale-90 transition-all border-b-4 border-amber-700"
+              >
+                <Plus size={28}/>
+              </button>
             </div>
 
-            <div className="flex-1 space-y-6 text-center md:text-left pt-6">
-              <div className="space-y-2">
-                <p className="text-amber-600 text-[11px] font-black tracking-[0.5em] uppercase">{w.country} / {w.region || 'Select Region'}</p>
-                <h2 className="text-4xl font-serif tracking-tight leading-tight text-amber-50/95 group-hover:text-white transition-colors">{w.name_jp}</h2>
-                <p className="text-[11px] text-white/30 font-bold tracking-[0.2em] uppercase italic">{w.name_en}</p>
+            {loading ? (
+              <div className="py-32 flex flex-col items-center justify-center gap-6 opacity-20">
+                <Wine size={64} className="animate-bounce text-slate-300" />
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Loading Store Assets...</p>
               </div>
+            ) : (
+              <div className="grid gap-5">
+                {stores.length === 0 ? (
+                  <div className="bg-white p-16 rounded-[3rem] border-4 border-dashed border-slate-100 text-center space-y-4">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto">
+                      <Briefcase className="text-slate-200" size={32}/>
+                    </div>
+                    <p className="font-black text-slate-300 text-sm italic">管理中の店舗が見つかりません</p>
+                    <button 
+                      onClick={() => setView('settings')}
+                      className="text-amber-500 font-black text-[10px] uppercase tracking-widest hover:underline"
+                    >
+                      最初の店舗を登録する
+                    </button>
+                  </div>
+                ) : (
+                  stores.map(store => (
+                    <div 
+                      key={store.slug} 
+                      className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-50 flex flex-col gap-6 hover:shadow-xl transition-all active:scale-[0.99] group"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div 
+                            className="w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl rotate-2 group-hover:rotate-0 transition-transform" 
+                            style={{ backgroundColor: store.theme_color || '#b45309' }}
+                          >
+                            <Store size={32}/>
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="font-black text-xl text-slate-800 leading-tight truncate">{store.store_name}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] font-black text-slate-300 tracking-wider">/{store.slug}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button 
+                            onClick={() => setQrModal({slug: store.slug, name: store.store_name})} 
+                            className="p-3 text-slate-300 hover:text-amber-500 transition-colors bg-slate-50 rounded-xl"
+                          >
+                            <QrCode size={20}/>
+                          </button>
+                          <button 
+                            onClick={() => { setEditSlug(store.slug); setView('settings'); }} 
+                            className="p-3 text-slate-300 hover:text-slate-900 transition-colors bg-slate-50 rounded-xl"
+                          >
+                            <Settings size={20}/>
+                          </button>
+                        </div>
+                      </div>
 
-              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-                <span className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest border transition-colors ${w.color === '赤' ? 'bg-red-950/40 border-red-500/30 text-red-200' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-100'}`}>{w.color}</span>
-                <span className="px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest border border-white/10 bg-white/5 text-white/40 uppercase">{w.grape}</span>
-              </div>
-
-              <div className="flex items-end justify-center md:justify-start gap-4">
-                <p className="text-4xl font-light text-amber-200 italic tracking-tighter flex items-end">
-                  <span className="text-xs text-white/30 not-italic mr-2 mb-2 uppercase tracking-widest">Bottle</span>
-                  ¥{Number(w.price_bottle || 0).toLocaleString()}
-                </p>
-                {w.price_glass > 0 && (
-                  <p className="text-xl font-light text-white/40 italic tracking-tighter flex items-end mb-1">
-                    <span className="text-[10px] mr-2 mb-1">Glass</span>
-                    ¥{Number(w.price_glass).toLocaleString()}
-                  </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button 
+                          onClick={() => { setActiveSlug(store.slug); setView('inventory'); }} 
+                          className="h-16 bg-slate-900 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all border-b-4 border-black"
+                        >
+                          在庫・価格管理 <ChevronRight size={14}/>
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const url = getSafeUrl(`/${store.slug}`);
+                            if (url !== '#') window.open(url, '_blank');
+                          }} 
+                          className="h-16 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-sm active:bg-slate-50 transition-all"
+                        >
+                          メニューを表示 <ExternalLink size={14}/>
+                        </button>
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
-
-              {w.ai_explanation && (
-                <div className="relative p-7 bg-white/[0.02] rounded-[2.5rem] border-l-2 border-amber-600/40 backdrop-blur-sm group-hover:bg-white/[0.04] transition-all">
-                  <p className="text-xs text-white/60 leading-relaxed italic font-light font-serif tracking-wide">{w.ai_explanation}</p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Floating AI Button */}
-      <button onClick={() => setIsChatOpen(true)} className="fixed bottom-10 left-1/2 -translate-x-1/2 px-12 py-7 bg-amber-700 hover:bg-amber-600 text-white rounded-full flex items-center gap-4 shadow-[0_30px_60px_rgba(180,83,9,0.5)] transition-all active:scale-95 group z-50 border border-white/20">
-        <Sparkles size={28} className="text-amber-200 group-hover:rotate-12 transition-transform" />
-        <span className="text-sm font-black tracking-[0.3em] uppercase">AI Sommelier Consulting</span>
-      </button>
+        {view === 'settings' && <StoreSettingsView editSlug={editSlug} onBack={() => { setView('dashboard'); loadData(); }} />}
+        {view === 'inventory' && activeSlug && <InventoryManagerView slug={activeSlug} onBack={() => setView('dashboard')} />}
+        {view === 'master' && <MasterDataManagerView onBack={() => setView('dashboard')} />}
+      </main>
 
-      {/* Premium Chat Interface */}
-      {isChatOpen && (
-        <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/95 backdrop-blur-xl p-0 md:p-6 animate-in fade-in duration-500">
-          <div className="bg-[#0a0a0a] w-full max-w-xl h-[94vh] md:h-[700px] md:rounded-[4rem] border-t md:border border-white/10 flex flex-col shadow-[0_0_100px_rgba(0,0,0,1)] relative overflow-hidden">
-            <button onClick={() => setIsChatOpen(false)} className="absolute top-8 right-8 text-white/20 hover:text-white transition-colors z-20"><X size={32}/></button>
-            <div className="p-12 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
-              <h3 className="text-3xl font-serif italic text-amber-500">Wine Concierge</h3>
-              <p className="text-[10px] text-white/30 uppercase tracking-[0.4em] mt-2 font-black">AIソムリエが最適な一本をエスコートします</p>
+      {/* QR Modal (Premium Mobile UI) */}
+      {qrModal && (
+        <div 
+          className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300"
+          onClick={() => setQrModal(null)}
+        >
+          <div 
+            className="bg-white p-8 md:p-10 rounded-[3.5rem] shadow-2xl max-w-xs w-full text-center space-y-8 animate-in zoom-in-95 duration-300 relative border border-white/20" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center px-2">
+              <span className="font-black text-slate-400 text-[10px] uppercase tracking-[0.3em]">Menu QR Access</span>
+              <button onClick={() => setQrModal(null)} className="p-2 transition-colors active:text-red-500 bg-slate-50 rounded-full">
+                <X size={20} className="text-slate-400" />
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-10 space-y-8 scrollbar-hide">
-              {history.length === 0 && (
-                <div className="text-center py-24 space-y-8 opacity-20">
-                  <Wine className="mx-auto text-amber-500" size={48}/>
-                  <div className="space-y-2"><p className="text-xl font-serif italic">「今夜の気分をお聞かせください」</p><p className="text-[10px] tracking-widest uppercase">お好みに合わせて特別な一本をご提案します</p></div>
-                </div>
-              )}
-              {history.map((h, i) => (
-                <div key={i} className={`flex ${h.role === 'user' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-4`}>
-                  <div className={`max-w-[85%] p-7 rounded-[2.5rem] text-[13px] leading-relaxed shadow-lg ${h.role === 'user' ? 'bg-amber-700 text-white font-bold' : 'bg-white/[0.05] text-amber-50/90 border border-white/10 font-light'}`}>{h.content}</div>
-                </div>
-              ))}
-              {isTyping && <div className="flex justify-start px-4"><div className="bg-white/5 p-6 rounded-3xl animate-pulse flex gap-2"><div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" /><div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce [animation-delay:0.2s]" /><div className="w-2 h-2 bg-amber-500 rounded-full animate-bounce [animation-delay:0.4s]" /></div></div>}
+
+            <div className="aspect-square bg-slate-50 rounded-[3rem] border-8 border-slate-50 overflow-hidden shadow-inner flex items-center justify-center p-6 relative">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(getSafeUrl('/' + qrModal.slug))}`} 
+                alt="QR Code" 
+                className="w-full h-full mix-blend-multiply" 
+              />
+              <div className="absolute inset-0 border-[12px] border-white/50 rounded-[2.5rem] pointer-events-none" />
             </div>
-            <div className="p-10 bg-black/50 border-t border-white/5">
-              <div className="relative group">
-                <input type="text" placeholder="ソムリエに相談する..." className="w-full bg-white/5 border border-white/10 rounded-[2.5rem] py-7 pl-10 pr-20 outline-none focus:border-amber-500/50 transition-all font-bold text-sm shadow-inner group-focus-within:bg-white/10" value={chatMsg} onChange={e => setChatMsg(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSend()} />
-                <button onClick={handleSend} disabled={!chatMsg.trim() || isTyping} className="absolute right-5 top-1/2 -translate-y-1/2 text-amber-500 hover:text-amber-400 p-3 disabled:opacity-20 transition-transform active:scale-90"><Send size={28}/></button>
-              </div>
+
+            <div className="space-y-1">
+              <p className="font-black text-2xl text-slate-900 leading-tight tracking-tight">{qrModal.name}</p>
+              <p className="text-[11px] text-slate-400 font-bold break-all opacity-40 italic">pieroth-menu.app/{qrModal.slug}</p>
             </div>
+
+            <button 
+              onClick={() => setQrModal(null)} 
+              className="w-full py-5 bg-slate-900 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-xl border-b-4 border-black"
+            >
+              閉じる
+            </button>
           </div>
         </div>
       )}
-    </main>
+
+      {/* Bottom Floating Nav Bar (Thumb-friendly Navigation) */}
+      <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[92%] max-w-sm h-18 bg-white/95 backdrop-blur-2xl border border-slate-200/50 px-2 rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.2)] flex justify-around items-center z-[150] transition-all">
+        <button 
+          onClick={() => { setView('dashboard'); setActiveSlug(null); }} 
+          className={`flex flex-col items-center gap-1 flex-1 transition-all ${view === 'dashboard' ? 'text-amber-500 scale-110' : 'text-slate-300 hover:text-slate-500'}`}
+        >
+          <LayoutDashboard size={26}/>
+          <span className="text-[8px] font-black uppercase tracking-widest">Stores</span>
+        </button>
+
+        <button 
+          onClick={() => { setEditSlug(null); setView('settings'); }} 
+          className="w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center shadow-2xl -translate-y-6 border-[6px] border-slate-50 active:scale-90 transition-all group"
+        >
+          <Plus size={28} className="group-hover:rotate-90 transition-transform duration-500"/>
+        </button>
+
+        <button 
+          onClick={() => setView('master')} 
+          className={`flex flex-col items-center gap-1 flex-1 transition-all ${view === 'master' ? 'text-amber-500 scale-110' : 'text-slate-300 hover:text-slate-500'}`}
+        >
+          <Database size={26}/>
+          <span className="text-[8px] font-black uppercase tracking-widest">Master</span>
+        </button>
+      </nav>
+      
+      {/* Decorative Background Elements */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1] overflow-hidden opacity-40">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-amber-100/50 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-slate-200/50 blur-[120px] rounded-full" />
+      </div>
+    </div>
   );
 }

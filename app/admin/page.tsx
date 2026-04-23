@@ -10,7 +10,7 @@ import {
   Loader2, ArrowLeft, Download, FileText, Upload, Check, 
   CheckCircle2, AlertCircle, Save, Palette, Globe, FileSpreadsheet,
   RefreshCw, Menu, FileDown, History, Wine, MapPin, Calendar,
-  Briefcase, Edit3
+  Briefcase, Edit3, GlassWater, Sparkles
 } from 'lucide-react';
 
 /**
@@ -36,7 +36,233 @@ const getSafeUrl = (path: string) => {
  * =====================================================================
  */
 
-// --- 1. 店舗設定 (Store Settings) ---
+// --- 1. 在庫管理 (Inventory Manager) ---
+function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => void }) {
+  const [master, setMaster] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<Record<string, any>>({});
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const refresh = async () => {
+    if (!slug) return;
+    setLoading(true);
+    try {
+      const [mRes, sRes] = await Promise.all([
+        fetch(getSafeUrl('/api/master/list')),
+        fetch(getSafeUrl(`/api/wines?slug=${slug}`))
+      ]);
+      const mData = await mRes.json();
+      const sData = await sRes.json();
+      setMaster(Array.isArray(mData) ? mData : []);
+      const invMap: any = {};
+      if (Array.isArray(sData)) {
+        sData.forEach((w: any) => { 
+          invMap[w.id] = { 
+            active: true, 
+            price_bottle: w.price_bottle, 
+            price_glass: w.price_glass || 0,
+            stock: w.stock 
+          }; 
+        });
+      }
+      setInventory(invMap);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
+
+  useEffect(() => { refresh(); }, [slug]);
+
+  // 掲載切り替え（チェックボタンのバグ修正版）
+  const toggleVisibility = async (wineId: string) => {
+    if (updatingId) return;
+    setUpdatingId(wineId);
+    try {
+      const res = await fetch(getSafeUrl('/api/store/inventory/toggle'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, wineId })
+      });
+      
+      if (res.ok) {
+        // APIのレスポンスを待たずに、現在の状態に基づいてローカルステートをトグル
+        setInventory(prev => {
+          const next = { ...prev };
+          if (next[wineId]) {
+            delete next[wineId];
+          } else {
+            const m = master.find(x => x.id === wineId);
+            next[wineId] = { 
+              active: true, 
+              price_bottle: m?.price_bottle || 0, 
+              price_glass: m?.price_glass || 0,
+              stock: m?.stock || 0 
+            };
+          }
+          return next;
+        });
+      }
+    } catch (e) { console.error("Toggle error:", e); }
+    setUpdatingId(null);
+  };
+
+  // 価格・在庫の個別保存
+  const updateField = async (wineId: string, field: string, value: number) => {
+    try {
+      await fetch(getSafeUrl('/api/store/inventory/update'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, wineId, [field]: value })
+      });
+      // 入力中の値をステートに反映
+      setInventory(prev => ({
+        ...prev,
+        [wineId]: { ...prev[wineId], [field]: value }
+      }));
+    } catch (e) { console.error("Update error:", e); }
+  };
+
+  const handleReflectToMenu = async () => {
+    setSyncing(true);
+    await refresh(); // 最新情報を再取得して同期を確認
+    setTimeout(() => setSyncing(false), 800);
+  };
+
+  const filtered = useMemo(() => 
+    master.filter(w => 
+      (w.name_jp || "").toLowerCase().includes(search.toLowerCase()) || 
+      (w.id || "").toLowerCase().includes(search.toLowerCase())
+    ).slice(0, 60),
+    [master, search]
+  );
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300 pb-32">
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm border border-slate-100 active:bg-slate-50 transition-all">
+            <ArrowLeft size={20}/>
+          </button>
+          <div>
+            <h2 className="text-xl font-black text-slate-800 leading-none">{slug}</h2>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Direct Edit Mode</p>
+          </div>
+        </div>
+        
+        {/* メニューに反映させるボタン */}
+        <button 
+          onClick={handleReflectToMenu}
+          disabled={syncing}
+          className="flex items-center gap-2 px-5 py-3 bg-amber-500 text-white rounded-2xl font-black text-xs shadow-[0_10px_20px_rgba(245,158,11,0.3)] active:scale-95 transition-all disabled:opacity-50"
+        >
+          {syncing ? <Loader2 className="animate-spin" size={14}/> : <Sparkles size={14}/>}
+          メニューに反映
+        </button>
+      </div>
+
+      <div className="sticky top-0 z-20 py-2 bg-slate-50/80 backdrop-blur-md">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+          <input 
+            type="text" placeholder="商品名・IDで検索..." 
+            className="w-full h-14 pl-12 pr-4 bg-white rounded-2xl border border-slate-100 shadow-sm font-bold text-sm outline-none focus:border-amber-500 transition-all"
+            value={search} onChange={e => setSearch(e.target.value)} 
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="animate-spin text-amber-500" size={32} />
+          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Loading Store Menu...</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {filtered.map(w => {
+            const inv = inventory[w.id];
+            const isActive = !!inv;
+            return (
+              <div 
+                key={w.id} 
+                className={`bg-white p-5 rounded-[2.2rem] border-2 flex flex-col gap-4 transition-all ${
+                  isActive ? 'border-amber-500 shadow-xl' : 'border-transparent opacity-60'
+                }`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-16 h-20 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                    <img src={w.image_url} className="max-h-full object-contain" alt="" onError={(e:any)=>e.target.src='https://placehold.co/100x150?text=WINE'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase">ID: {w.id}</span>
+                      <span className="text-[8px] font-black text-slate-300 truncate">{w.country}</span>
+                    </div>
+                    <h4 className="font-black text-slate-900 text-[13px] leading-tight line-clamp-2">{w.name_jp}</h4>
+                  </div>
+                  
+                  {/* チェックボタン（掲載トグル） */}
+                  <button 
+                    onClick={() => toggleVisibility(w.id)}
+                    disabled={updatingId === w.id}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 transition-all shadow-md active:scale-90 ${
+                      isActive ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-200'
+                    }`}
+                  >
+                    {updatingId === w.id ? <Loader2 className="animate-spin" size={20}/> : <Check size={26} strokeWidth={4}/>}
+                  </button>
+                </div>
+
+                {isActive && (
+                  <div className="space-y-3 pt-3 border-t border-slate-50">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase ml-2">
+                          <Edit3 size={10}/> ボトル価格 (¥)
+                        </div>
+                        <input 
+                          type="number" 
+                          className="w-full h-11 px-4 bg-slate-50 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-amber-500 transition-all"
+                          defaultValue={inv.price_bottle}
+                          onBlur={(e) => updateField(w.id, 'price_bottle', parseInt(e.target.value))}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase ml-2">
+                          <GlassWater size={10}/> グラス価格 (¥)
+                        </div>
+                        <input 
+                          type="number" 
+                          placeholder="0"
+                          className="w-full h-11 px-4 bg-slate-50 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-amber-500 transition-all"
+                          defaultValue={inv.price_glass}
+                          onBlur={(e) => updateField(w.id, 'price_glass', parseInt(e.target.value))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase ml-2">
+                        <Database size={10}/> 在庫数 (本)
+                      </div>
+                      <input 
+                        type="number" 
+                        className="w-full h-11 px-4 bg-slate-50 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-amber-500 transition-all"
+                        defaultValue={inv.stock}
+                        onBlur={(e) => updateField(w.id, 'stock', parseInt(e.target.value))}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- 2. 店舗設定 (Store Settings) ---
 function StoreSettingsView({ editSlug, onBack }: { editSlug: string | null, onBack: () => void }) {
   const [formData, setFormData] = useState({ name: '', slug: '', color: '#b45309' });
   const [loading, setLoading] = useState(false);
@@ -95,182 +321,6 @@ function StoreSettingsView({ editSlug, onBack }: { editSlug: string | null, onBa
         </button>
         {status && <div className={`text-center font-bold text-sm ${status.type === 'success' ? 'text-emerald-500' : 'text-red-500'}`}>{status.msg}</div>}
       </form>
-    </div>
-  );
-}
-
-// --- 2. 在庫管理 (Inventory Manager) ---
-function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => void }) {
-  const [master, setMaster] = useState<any[]>([]);
-  const [inventory, setInventory] = useState<Record<string, any>>({});
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-
-  const refresh = async () => {
-    if (!slug) return;
-    setLoading(true);
-    try {
-      const [mRes, sRes] = await Promise.all([
-        fetch(getSafeUrl('/api/master/list')),
-        fetch(getSafeUrl(`/api/wines?slug=${slug}`))
-      ]);
-      const mData = await mRes.json();
-      const sData = await sRes.json();
-      setMaster(Array.isArray(mData) ? mData : []);
-      const invMap: any = {};
-      if (Array.isArray(sData)) {
-        sData.forEach((w: any) => { 
-          invMap[w.id] = { active: true, price_bottle: w.price_bottle, stock: w.stock }; 
-        });
-      }
-      setInventory(invMap);
-    } catch (e) { console.error(e); }
-    setLoading(false);
-  };
-
-  useEffect(() => { refresh(); }, [slug]);
-
-  // 掲載切り替え
-  const toggleVisibility = async (wineId: string) => {
-    setUpdatingId(wineId);
-    try {
-      const res = await fetch(getSafeUrl('/api/store/inventory/toggle'), {
-        method: 'POST',
-        body: JSON.stringify({ slug, wineId })
-      });
-      if (res.ok) {
-        // ローカルステートを反転させて即時反映
-        setInventory(prev => {
-          const next = { ...prev };
-          if (next[wineId]) {
-            delete next[wineId];
-          } else {
-            const m = master.find(x => x.id === wineId);
-            next[wineId] = { active: true, price_bottle: m?.price_bottle || 0, stock: m?.stock || 0 };
-          }
-          return next;
-        });
-      }
-    } catch (e) { console.error(e); }
-    setUpdatingId(null);
-  };
-
-  // 価格・在庫の個別保存
-  const updateField = async (wineId: string, field: string, value: number) => {
-    try {
-      await fetch(getSafeUrl('/api/store/inventory/update'), {
-        method: 'POST',
-        body: JSON.stringify({ slug, wineId, [field]: value })
-      });
-    } catch (e) { console.error(e); }
-  };
-
-  const filtered = useMemo(() => 
-    master.filter(w => 
-      (w.name_jp || "").toLowerCase().includes(search.toLowerCase()) || 
-      (w.id || "").toLowerCase().includes(search.toLowerCase())
-    ).slice(0, 50),
-    [master, search]
-  );
-
-  return (
-    <div className="space-y-6 animate-in slide-in-from-right-4 duration-300 pb-32">
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm border border-slate-100 active:bg-slate-50 transition-all">
-            <ArrowLeft size={20}/>
-          </button>
-          <div>
-            <h2 className="text-xl font-black text-slate-800 leading-none">{slug}</h2>
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Direct Edit Mode</p>
-          </div>
-        </div>
-        <button onClick={() => window.open(getSafeUrl(`/api/store/export/${slug}`))} className="p-3 bg-slate-900 text-white rounded-2xl shadow-lg active:bg-amber-500">
-          <Download size={20}/>
-        </button>
-      </div>
-
-      <div className="sticky top-0 z-20 py-2 bg-slate-50/80 backdrop-blur-md">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-          <input 
-            type="text" placeholder="商品名・IDで検索..." 
-            className="w-full h-14 pl-12 pr-4 bg-white rounded-2xl border border-slate-100 shadow-sm font-bold text-sm outline-none focus:border-amber-500 transition-all"
-            value={search} onChange={e => setSearch(e.target.value)} 
-          />
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="animate-spin text-amber-500" size={32} />
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Loading D1 Data...</p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {filtered.map(w => {
-            const inv = inventory[w.id];
-            return (
-              <div 
-                key={w.id} 
-                className={`bg-white p-5 rounded-[2.2rem] border-2 flex flex-col gap-4 transition-all ${
-                  inv?.active ? 'border-amber-500 shadow-xl' : 'border-transparent opacity-60'
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-20 bg-slate-50 rounded-xl flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
-                    <img src={w.image_url} className="max-h-full object-contain" alt="" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase">ID: {w.id}</span>
-                      <span className="text-[8px] font-black text-slate-300 truncate">{w.country}</span>
-                    </div>
-                    <h4 className="font-black text-slate-900 text-[13px] leading-tight line-clamp-2">{w.name_jp}</h4>
-                  </div>
-                  <button 
-                    onClick={() => toggleVisibility(w.id)}
-                    disabled={updatingId === w.id}
-                    className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 transition-all shadow-md active:scale-90 ${
-                      inv?.active ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-200'
-                    }`}
-                  >
-                    {updatingId === w.id ? <Loader2 className="animate-spin" size={20}/> : <Check size={26} strokeWidth={4}/>}
-                  </button>
-                </div>
-
-                {inv?.active && (
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-50">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase ml-2">
-                        <Edit3 size={10}/> ボトル価格 (¥)
-                      </div>
-                      <input 
-                        type="number" 
-                        className="w-full h-11 px-4 bg-slate-50 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-amber-500 transition-all"
-                        defaultValue={inv.price_bottle}
-                        onBlur={(e) => updateField(w.id, 'price_bottle', parseInt(e.target.value))}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400 uppercase ml-2">
-                        <Database size={10}/> 在庫数 (本)
-                      </div>
-                      <input 
-                        type="number" 
-                        className="w-full h-11 px-4 bg-slate-50 rounded-xl font-bold text-sm outline-none focus:ring-2 ring-amber-500 transition-all"
-                        defaultValue={inv.stock}
-                        onBlur={(e) => updateField(w.id, 'stock', parseInt(e.target.value))}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

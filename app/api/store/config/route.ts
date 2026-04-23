@@ -7,26 +7,36 @@ export async function POST(req: Request) {
   const staffEmail = req.headers.get('x-user-email');
   if (!staffEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { store_name, slug, theme_color } = await req.json();
-  const db = getRequestContext().env.DB;
+  const { store_name, slug, theme_color, is_edit } = await req.json();
+  const db = (getRequestContext() as any).env.DB;
 
+  // バリデーション
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return NextResponse.json({ error: "URLは小文字英数字とハイフンのみ使用できます" }, { status: 400 });
   }
 
   try {
-    await db.prepare(`
-      INSERT INTO store_configs (slug, staff_email, store_name, theme_color)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(slug) DO UPDATE SET
-        store_name = excluded.store_name,
-        theme_color = excluded.theme_color
-    `).bind(slug, staffEmail, store_name, theme_color || '#b45309').run();
+    if (is_edit) {
+      // 既存店舗の編集（スタッフが作成したものかチェック含む）
+      const { success } = await db.prepare(`
+        UPDATE store_configs 
+        SET store_name = ?, theme_color = ?
+        WHERE slug = ? AND staff_email = ?
+      `).bind(store_name, theme_color, slug, staffEmail).run();
+
+      if (!success) throw new Error("更新に失敗しました。権限がない可能性があります。");
+    } else {
+      // 新規店舗の登録
+      await db.prepare(`
+        INSERT INTO store_configs (slug, staff_email, store_name, theme_color)
+        VALUES (?, ?, ?, ?)
+      `).bind(slug, staffEmail, store_name, theme_color || '#b45309').run();
+    }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
     if (e.message.includes("UNIQUE")) {
-      return NextResponse.json({ error: "このURLは既に使用されています" }, { status: 400 });
+      return NextResponse.json({ error: "このURLスラッグは既に使用されています" }, { status: 400 });
     }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

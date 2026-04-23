@@ -5,10 +5,9 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(req: Request) {
   try {
-    const { slug, wineId, price_bottle, stock } = await req.json();
+    const { slug, wineId, price_bottle, price_glass, stock } = await req.json();
     const db = (getRequestContext() as any).env.DB;
 
-    // 特定のフィールドが送信された場合のみ更新する
     let query = "UPDATE store_inventory SET ";
     const params: any[] = [];
     const sets: string[] = [];
@@ -16,6 +15,10 @@ export async function POST(req: Request) {
     if (price_bottle !== undefined) {
       sets.push("price_bottle = ?");
       params.push(price_bottle);
+    }
+    if (price_glass !== undefined) {
+      sets.push("price_glass = ?");
+      params.push(price_glass);
     }
     if (stock !== undefined) {
       sets.push("stock = ?");

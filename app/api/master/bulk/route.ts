@@ -1,91 +1,43 @@
-// app/api/master/bulk/route.ts
+// app/api/store/config/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
 export async function POST(req: Request) {
+  const staffEmail = req.headers.get('x-user-email');
+  if (!staffEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { store_name, slug, theme_color, is_edit } = await req.json();
+  const db = (getRequestContext() as any).env.DB;
+
+  // バリデーション
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return NextResponse.json({ error: "URLは小文字英数字とハイフンのみ使用できます" }, { status: 400 });
+  }
+
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-    if (!file) throw new Error("CSVファイルが選択されていません。");
+    if (is_edit) {
+      // 既存店舗の編集（スタッフが作成したものかチェック含む）
+      const { success } = await db.prepare(`
+        UPDATE store_configs 
+        SET store_name = ?, theme_color = ?
+        WHERE slug = ? AND staff_email = ?
+      `).bind(store_name, theme_color, slug, staffEmail).run();
 
-    const buffer = await file.arrayBuffer();
-    let text = new TextDecoder("utf-8").decode(buffer);
-
-    // Shift-JIS (Excel) 対応
-    if (text.includes('\uFFFD')) {
-      text = new TextDecoder("shift-jis").decode(buffer);
-    }
-    
-    text = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const rows = text.split('\n').filter(line => line.trim());
-    if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
-
-    const headers = rows[0].split(',').map(h => 
-      h.replace(/["']/g, '').trim().toLowerCase()
-    );
-    
-    const db = (getRequestContext() as any).env.DB;
-    const batch = [];
-    const idIdx = headers.findIndex(h => h === "id");
-
-    for (let i = 1; i < rows.length; i++) {
-      const values: string[] = [];
-      let cell = "", inQuote = false;
-      const currentRow = rows[i];
-      
-      for (let j = 0; j < currentRow.length; j++) {
-        const char = currentRow[j];
-        if (char === '"') inQuote = !inQuote;
-        else if (char === ',' && !inQuote) {
-          values.push(cell.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-          cell = "";
-        } else cell += char;
-      }
-      values.push(cell.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-
-      const data: any = {};
-      headers.forEach((h, idx) => { if (h) data[h] = values[idx] || ""; });
-      if (!values[idIdx]) continue;
-
-      const getNum = (key: string) => {
-        const val = parseFloat(data[key]);
-        return isNaN(val) ? 0 : val;
-      };
-
-      // 優先度判別
-      const isPriority = (data.id.startsWith('P-') || data.is_priority == "1") ? 1 : 0;
-
-      batch.push(
-        db.prepare(`
-          INSERT INTO wines_master (
-            id, name_jp, name_en, country, region, grape, color, type, vintage, 
-            alcohol, ai_explanation, menu_short, pairing, aroma_features, tags, 
-            image_url, is_priority, sweetness, body, acidity, tannins
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            name_jp=excluded.name_jp, 
-            name_en=excluded.name_en, 
-            ai_explanation=excluded.ai_explanation,
-            image_url=excluded.image_url, 
-            is_priority=excluded.is_priority,
-            sweetness=excluded.sweetness, 
-            body=excluded.body, 
-            acidity=excluded.acidity,
-            tannins=excluded.tannins
-        `).bind(
-          values[idIdx], data.name_jp, data.name_en, data.country, data.region, data.grape, 
-          data.color, data.type, data.vintage, data.alcohol, data.ai_explanation, 
-          data.menu_short, data.pairing, data.aroma_features, data.tags, data.image_url,
-          isPriority,
-          getNum('sweetness'), getNum('body'), getNum('acidity'), getNum('tannins')
-        )
-      );
+      if (!success) throw new Error("更新に失敗しました。権限がない可能性があります。");
+    } else {
+      // 新規店舗の登録
+      await db.prepare(`
+        INSERT INTO store_configs (slug, staff_email, store_name, theme_color)
+        VALUES (?, ?, ?, ?)
+      `).bind(slug, staffEmail, store_name, theme_color || '#b45309').run();
     }
 
-    await db.batch(batch);
-    return NextResponse.json({ success: true, count: batch.length });
+    return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (e.message.includes("UNIQUE")) {
+      return NextResponse.json({ error: "このURLスラッグは既に使用されています" }, { status: 400 });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

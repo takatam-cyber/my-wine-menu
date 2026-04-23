@@ -6,13 +6,13 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const db = getRequestContext().env.DB;
+    const db = (getRequestContext() as any).env.DB;
 
     // store_inventoryにマスターデータを紐付けて全項目取得
     const { results } = await db.prepare(`
       SELECT 
         m.id, m.name_jp, m.country, 
-        i.price_bottle, i.price_glass, i.stock, i.is_visible
+        i.price_bottle, i.price_glass, i.stock
       FROM store_inventory i
       JOIN wines_master m ON i.wine_id = m.id
       WHERE i.store_slug = ?
@@ -20,14 +20,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
     `).bind(slug).all();
 
     if (!results || results.length === 0) {
-      // 在庫がない場合はテンプレート的にマスターから数件出すか、空で返す
-      return NextResponse.json({ error: "データがありません。先にマスターから追加してください。" }, { status: 404 });
+      return NextResponse.json({ error: "在庫データがありません。" }, { status: 404 });
     }
 
-    const headers = ["id", "name_jp", "country", "price_bottle", "price_glass", "stock", "is_visible"];
+    const headers = ["id", "name_jp", "country", "price_bottle", "price_glass", "stock"];
     const csvRows = [headers.join(',')];
 
-    results.forEach((row: any) => {
+    (results as any[]).forEach(row => {
       const values = headers.map(h => {
         const val = row[h] === null ? "" : String(row[h]);
         return `"${val.replace(/"/g, '""')}"`; // CSVエスケープ
@@ -35,10 +34,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
       csvRows.push(values.join(','));
     });
 
-    // 日本のExcelのためにBOM(Byte Order Mark)を付与してUTF-8で返す
+    // 日本のExcelのためにBOM(Byte Order Mark)を付与したUTF-8
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
     const csvContent = csvRows.join('\r\n');
-    const blob = new Blob([bom, csvContent], { type: 'text/csv; charset=utf-8' });
+    const csvArray = new TextEncoder().encode(csvContent);
+    const blob = new Uint8Array(bom.length + csvArray.length);
+    blob.set(bom);
+    blob.set(csvArray, bom.length);
 
     return new Response(blob, {
       headers: {

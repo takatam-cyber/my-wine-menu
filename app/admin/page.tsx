@@ -10,7 +10,7 @@ import {
   Loader2, ArrowLeft, Download, FileText, Upload, Check, 
   CheckCircle2, AlertCircle, Save, Palette, Globe, FileSpreadsheet,
   RefreshCw, Menu, FileDown, History, Wine, MapPin, Calendar,
-  Briefcase, Edit3, GlassWater, Sparkles
+  Briefcase, Edit3, GlassWater, Sparkles, Key
 } from 'lucide-react';
 
 /**
@@ -36,7 +36,76 @@ const getSafeUrl = (path: string) => {
  * =====================================================================
  */
 
-// --- 1. 在庫管理 (Inventory Manager) ---
+// --- 1. 店舗設定 (Store Settings) ---
+function StoreSettingsView({ editSlug, onBack }: { editSlug: string | null, onBack: () => void }) {
+  const [formData, setFormData] = useState({ name: '', slug: '', color: '#b45309', access_password: '' });
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<{type: 'success'|'error', msg: string} | null>(null);
+
+  useEffect(() => {
+    if (editSlug) {
+      setLoading(true);
+      fetch(getSafeUrl(`/api/store/config/public?slug=${editSlug}`))
+        .then(res => res.json())
+        .then(data => setFormData({ 
+          name: data.store_name, 
+          slug: editSlug, 
+          color: data.theme_color || '#b45309',
+          access_password: data.access_password || ''
+        }))
+        .finally(() => setLoading(false));
+    }
+  }, [editSlug]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch(getSafeUrl('/api/store/config'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, is_edit: !!editSlug }),
+      });
+      if (res.ok) {
+        setStatus({ type: 'success', msg: '保存完了' });
+        setTimeout(onBack, 1000);
+      } else {
+        setStatus({ type: 'error', msg: 'エラーが発生しました' });
+      }
+    } catch (e) { setStatus({ type: 'error', msg: '通信失敗' }); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-right-4">
+      <div className="flex items-center gap-3 px-2">
+        <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm"><ArrowLeft size={20}/></button>
+        <h2 className="text-xl font-black">{editSlug ? '店舗編集' : '新規開設'}</h2>
+      </div>
+      <form onSubmit={handleSave} className="bg-white p-6 rounded-[2rem] shadow-xl space-y-6 border border-slate-100">
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">店舗名称</label>
+          <input type="text" required className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 font-bold outline-none focus:border-amber-500 transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">URLスラッグ（飲食店様のIDになります）</label>
+          <input type="text" required disabled={!!editSlug} className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 font-bold disabled:opacity-50" value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2 flex items-center gap-1"><Key size={10}/> 飲食店様専用パスワード</label>
+          <input type="text" required placeholder="例: wine2024" className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 font-bold outline-none focus:border-amber-500 transition-all" value={formData.access_password} onChange={e => setFormData({...formData, access_password: e.target.value})} />
+          <p className="text-[9px] text-slate-400 ml-2 italic">※飲食店様がログインする際に使用します。</p>
+        </div>
+        <button type="submit" disabled={loading} className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
+          {loading ? <Loader2 className="animate-spin" /> : <Save size={20}/>} 保存する
+        </button>
+        {status && <div className={`text-center font-bold text-sm ${status.type === 'success' ? 'text-emerald-500' : 'text-red-500'}`}>{status.msg}</div>}
+      </form>
+    </div>
+  );
+}
+
+// --- 2. 在庫管理 (Inventory Manager) ---
 function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => void }) {
   const [master, setMaster] = useState<any[]>([]);
   const [inventory, setInventory] = useState<Record<string, any>>({});
@@ -74,7 +143,7 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
 
   useEffect(() => { refresh(); }, [slug]);
 
-  // 掲載切り替え（チェックボタンのバグ修正版）
+  // 掲載切り替え
   const toggleVisibility = async (wineId: string) => {
     if (updatingId) return;
     setUpdatingId(wineId);
@@ -86,7 +155,6 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
       });
       
       if (res.ok) {
-        // APIのレスポンスを待たずに、現在の状態に基づいてローカルステートをトグル
         setInventory(prev => {
           const next = { ...prev };
           if (next[wineId]) {
@@ -115,7 +183,6 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slug, wineId, [field]: value })
       });
-      // 入力中の値をステートに反映
       setInventory(prev => ({
         ...prev,
         [wineId]: { ...prev[wineId], [field]: value }
@@ -125,7 +192,7 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
 
   const handleReflectToMenu = async () => {
     setSyncing(true);
-    await refresh(); // 最新情報を再取得して同期を確認
+    await refresh(); 
     setTimeout(() => setSyncing(false), 800);
   };
 
@@ -149,8 +216,6 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Direct Edit Mode</p>
           </div>
         </div>
-        
-        {/* メニューに反映させるボタン */}
         <button 
           onClick={handleReflectToMenu}
           disabled={syncing}
@@ -200,8 +265,6 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
                     </div>
                     <h4 className="font-black text-slate-900 text-[13px] leading-tight line-clamp-2">{w.name_jp}</h4>
                   </div>
-                  
-                  {/* チェックボタン（掲載トグル） */}
                   <button 
                     onClick={() => toggleVisibility(w.id)}
                     disabled={updatingId === w.id}
@@ -258,69 +321,6 @@ function InventoryManagerView({ slug, onBack }: { slug: string, onBack: () => vo
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// --- 2. 店舗設定 (Store Settings) ---
-function StoreSettingsView({ editSlug, onBack }: { editSlug: string | null, onBack: () => void }) {
-  const [formData, setFormData] = useState({ name: '', slug: '', color: '#b45309' });
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<{type: 'success'|'error', msg: string} | null>(null);
-
-  useEffect(() => {
-    if (editSlug) {
-      setLoading(true);
-      fetch(getSafeUrl(`/api/store/config/public?slug=${editSlug}`))
-        .then(res => res.json())
-        .then(data => setFormData({ 
-          name: data.store_name, 
-          slug: editSlug, 
-          color: data.theme_color || '#b45309' 
-        }))
-        .finally(() => setLoading(false));
-    }
-  }, [editSlug]);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch(getSafeUrl('/api/store/config'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, is_edit: !!editSlug }),
-      });
-      if (res.ok) {
-        setStatus({ type: 'success', msg: '保存完了' });
-        setTimeout(onBack, 1000);
-      } else {
-        setStatus({ type: 'error', msg: 'エラーが発生しました' });
-      }
-    } catch (e) { setStatus({ type: 'error', msg: '通信失敗' }); }
-    setLoading(false);
-  };
-
-  return (
-    <div className="space-y-6 animate-in slide-in-from-right-4">
-      <div className="flex items-center gap-3 px-2">
-        <button onClick={onBack} className="p-2 bg-white rounded-full shadow-sm"><ArrowLeft size={20}/></button>
-        <h2 className="text-xl font-black">{editSlug ? '店舗編集' : '新規開設'}</h2>
-      </div>
-      <form onSubmit={handleSave} className="bg-white p-6 rounded-[2rem] shadow-xl space-y-6 border border-slate-100">
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">店舗名称</label>
-          <input type="text" required className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 font-bold outline-none focus:border-amber-500 transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">URLスラッグ</label>
-          <input type="text" required disabled={!!editSlug} className="w-full h-14 px-5 bg-slate-50 rounded-2xl border border-slate-100 font-bold disabled:opacity-50" value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})} />
-        </div>
-        <button type="submit" disabled={loading} className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center gap-2">
-          {loading ? <Loader2 className="animate-spin" /> : <Save size={20}/>} 保存する
-        </button>
-        {status && <div className={`text-center font-bold text-sm ${status.type === 'success' ? 'text-emerald-500' : 'text-red-500'}`}>{status.msg}</div>}
-      </form>
     </div>
   );
 }

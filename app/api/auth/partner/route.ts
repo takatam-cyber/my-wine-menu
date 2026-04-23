@@ -2,7 +2,7 @@
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
-import { signJWT } from '../../../lib/auth';
+import { signJWT } from '@/lib/auth'; // エイリアスを使用してパスエラーを解消
 
 export async function POST(req: Request) {
   try {

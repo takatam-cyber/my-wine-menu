@@ -8,10 +8,13 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
  */
 export async function GET() {
   try {
-    const db = (getRequestContext() as any).env.DB;
+    const env = (getRequestContext() as any).env;
+    const db = env.DB;
+    
+    // 全マスターデータを取得
     const { results } = await db.prepare("SELECT * FROM wines_master ORDER BY id ASC").all();
 
-    // 入力テンプレート(入力.csv)と全く同じ全34列の順番を定義
+    // 黄金の約束: 入力テンプレート(入力.csv)と全く同じ全34列の順序を厳守
     const headers = [
       "id", "name_jp", "name_en", "country", "region", "grape", "color", "type", 
       "vintage", "alcohol", "price_bottle", "price_glass", "cost", "stock", 
@@ -26,21 +29,33 @@ export async function GET() {
     (results as any[]).forEach(row => {
       const values = headers.map(h => {
         let val = "";
+        
+        // 特殊マッピング: DBの is_priority を CSVの visible (ON/OFF) に変換
         if (h === "visible") {
           val = row.is_priority === 1 ? "ON" : "OFF";
         } else {
-          val = row[h] === null || row[h] === undefined ? "" : String(row[h]);
+          const rawVal = row[h];
+          val = (rawVal === null || rawVal === undefined) ? "" : String(rawVal);
         }
-        // CSVエスケープ: ダブルクォートで囲み、中のクォートは2重にする
-        return `"${val.replace(/"/g, '""')}"`;
+
+        // CSVエスケープ: 
+        // 1. すべてのフィールドをダブルクォートで囲む
+        // 2. 値の中にあるダブルクォートは2重化する (" -> "")
+        // 3. 改行やカンマが含まれていても列ズレしないようにする
+        const escaped = val.replace(/"/g, '""');
+        return `"${escaped}"`;
       });
       csvRows.push(values.join(','));
     });
 
-    // Excel用UTF-8 BOM (0xEF, 0xBB, 0xBF)
+    // 1. Excel用UTF-8 BOM (0xEF, 0xBB, 0xBF) の作成
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    
+    // 2. CSV内容をUTF-8でエンコード (Excel対応のため改行は \r\n)
     const csvContent = csvRows.join('\r\n');
     const contentArray = new TextEncoder().encode(csvContent);
+    
+    // 3. BOMとコンテンツを結合
     const blob = new Uint8Array(bom.length + contentArray.length);
     blob.set(bom);
     blob.set(contentArray, bom.length);
@@ -48,7 +63,7 @@ export async function GET() {
     return new Response(blob, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="wine_master_full_export.csv"',
+        'Content-Disposition': 'attachment; filename="pieroth_master_export.csv"',
         'Cache-Control': 'no-cache'
       }
     });

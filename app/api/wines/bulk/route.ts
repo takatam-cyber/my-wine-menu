@@ -9,25 +9,27 @@ export async function POST(req: Request) {
     const file = formData.get('file') as File;
     const slug = formData.get('slug') as string;
 
-    if (!file || !slug) return NextResponse.json({ error: "ファイルまたは店舗スラッグが必要です" }, { status: 400 });
+    if (!file || !slug) return NextResponse.json({ error: "ファイルと店舗スラッグが必要です" }, { status: 400 });
 
     const text = await file.text();
     const rows = text.split(/\r?\n/).filter(row => row.trim() !== '');
-    if (rows.length < 2) throw new Error("CSVに有効なデータが含まれていません。");
+    if (rows.length < 2) throw new Error("CSVデータが空です");
 
     const headers = rows[0].split(',').map(h => h.trim());
     const db = getRequestContext().env.DB;
 
-    // 現在のラインナップを一旦リセット（上書き更新）
-    await db.prepare(`DELETE FROM store_inventory WHERE store_slug = ?`).bind(slug).run();
+    // バッチ処理で高速更新
+    const batch = [
+      db.prepare(`DELETE FROM store_inventory WHERE store_slug = ?`).bind(slug)
+    ];
 
-    const batch = [];
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i].split(',').map(v => v.trim());
       const data: any = {};
       headers.forEach((h, idx) => { data[h] = values[idx]; });
 
-      if (!data['ID']) continue;
+      const wineId = data['ID'] || data['id'];
+      if (!wineId) continue;
 
       batch.push(
         db.prepare(`
@@ -35,17 +37,19 @@ export async function POST(req: Request) {
           VALUES (?, ?, ?, ?, ?, 1)
         `).bind(
           slug, 
-          data['ID'], 
-          parseInt(data['ボトル価格'] || '0'), 
-          parseInt(data['グラス価格'] || '0'), 
-          parseInt(data['在庫'] || '0')
+          wineId, 
+          parseInt(data['ボトル価格'] || data['price_bottle'] || '0'), 
+          parseInt(data['グラス価格'] || data['price_glass'] || '0'), 
+          parseInt(data['在庫'] || data['stock'] || '0')
         )
       );
     }
 
-    if (batch.length > 0) await db.batch(batch);
+    if (batch.length > 1) {
+      await db.batch(batch);
+    }
 
-    return NextResponse.json({ success: true, count: batch.length });
+    return NextResponse.json({ success: true, count: batch.length - 1 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

@@ -1,5 +1,9 @@
 // app/[slug]/page.tsx
 "use client";
+
+// Cloudflare Pagesのビルドエラーを解消するために追加
+export const runtime = 'edge';
+
 import { useState, useEffect, use } from 'react';
 import { Wine, Info, Utensils, Star, MessageSquare, ChevronRight, X } from 'lucide-react';
 
@@ -20,8 +24,10 @@ export default function PublicMenu({ params }: { params: Promise<{ slug: string 
       fetch(`/api/store/config/public?slug=${slug}`).then(res => res.json()),
       fetch(`/api/wines?slug=${slug}`).then(res => res.json())
     ]).then(([config, wineData]) => {
-      setStoreName(config.store_name);
+      setStoreName(config.store_name || 'WINE MENU');
       setWines(Array.isArray(wineData) ? wineData : []);
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
   }, [slug]);

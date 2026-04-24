@@ -5,13 +5,15 @@ import { getRequestContext } from '@cloudflare/next-on-pages';
 
 /**
  * ピーロート・ソムリエ AI ロジック
- * プロンプトを大幅に強化し、単なる検索機ではなく「おもてなしの専門家」に変貌させました。
+ * プロンプトを大幅に強化し、単なる検索機ではなく「おもてなしの専門家」として実装
  */
 export async function POST(req: Request) {
   try {
     const { slug, query } = await req.json();
-    const env = getRequestContext().env;
+    const context = getRequestContext();
+    const env = context.env;
 
+    // D1 データベースから該当店舗の在庫リストを取得
     const { results: wines } = await env.DB.prepare(`
       SELECT 
         m.name_jp, m.country, m.color, m.grape, m.body, m.sweetness, m.ai_explanation, m.vintage
@@ -26,7 +28,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const wineListContext = wines.map(w => 
+    const wineListContext = wines.map((w: any) => 
       `- ${w.name_jp} (${w.vintage}, ${w.color}, ${w.country}, ボディ:${w.body}/5): ${w.ai_explanation}`
     ).join('\n');
 
@@ -46,8 +48,6 @@ export async function POST(req: Request) {
       4. 結び: お客様のディナーやひとときが輝くことを願う言葉を添えてください。
 
       【在庫リスト】の中から選ぶことを絶対に守ってください。
-      
-      それでは、ソムリエとして最高のご案内をお願いします。
     `;
 
     const userPrompt = `
@@ -57,6 +57,7 @@ export async function POST(req: Request) {
       ${wineListContext}
     `;
 
+    // Workers AI Llama-3 を実行
     const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
       messages: [
         { role: 'system', content: systemPrompt },
@@ -67,6 +68,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ answer: aiResponse.response });
   } catch (e: any) {
     console.error("AI Sommelier Error:", e.message);
-    return NextResponse.json({ error: "誠に恐縮ながら、現在ソムリエが他の接客にあたっております。少々お時間をおいてお声がけいただけますでしょうか。" }, { status: 500 });
+    return NextResponse.json({ 
+      error: "誠に恐縮ながら、現在ソムリエが他のお客様の対応にあたっております。少々お時間をおいてお声がけいただけますでしょうか。" 
+    }, { status: 500 });
   }
 }

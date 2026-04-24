@@ -1,10 +1,20 @@
 // lib/auth.ts
-const JWT_SECRET = process.env.JWT_SECRET || "YOUR_SUPER_SECRET_KEY_2026";
+import { getRequestContext } from '@cloudflare/next-on-pages';
+
+async function getJwtSecret(): Promise<string> {
+  try {
+    const env = (getRequestContext().env as any);
+    return env.JWT_SECRET || "PIEROTH_JAPAN_SECURE_2026_TOKEN";
+  } catch {
+    return "PIEROTH_JAPAN_SECURE_2026_TOKEN";
+  }
+}
 
 async function getCryptoKey() {
+  const secret = await getJwtSecret();
   return await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(JWT_SECRET),
+    new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"]
@@ -13,8 +23,8 @@ async function getCryptoKey() {
 
 export async function signJWT(payload: any) {
   const header = { alg: "HS256", typ: "JWT" };
-  const encodedHeader = btoa(JSON.stringify(header));
-  const encodedPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) }));
+  const encodedHeader = btoa(JSON.stringify(header)).replace(/=/g, "");
+  const encodedPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) })).replace(/=/g, "");
   const key = await getCryptoKey();
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`));
   const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");

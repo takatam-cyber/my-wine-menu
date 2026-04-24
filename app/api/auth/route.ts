@@ -9,10 +9,11 @@ export async function POST(req: Request) {
     const { email, password } = await req.json();
     const env = getRequestContext().env as any;
 
-    // Cloudflareの環境変数から取得、未設定時はデフォルト値を使用
+    // 基本的に管理者は環境変数で制御、一般営業スタッフは必要に応じてD1で照合可能
     const ADMIN_EMAIL = env.ADMIN_EMAIL || "takatam@pieroth.jp";
     const ADMIN_PASS = env.ADMIN_PASS || "19770912";
 
+    // ログインチェック
     if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
       const token = await signJWT({ email });
       const response = NextResponse.json({ success: true });
@@ -27,8 +28,11 @@ export async function POST(req: Request) {
       return response;
     }
 
-    return NextResponse.json({ error: "認証に失敗しました。メールアドレスまたはパスワードが正しくありません。" }, { status: 401 });
+    return NextResponse.json(
+      { error: "認証に失敗しました。メールアドレスまたはパスワードを確認してください。" }, 
+      { status: 401 }
+    );
   } catch (e: any) {
-    return NextResponse.json({ error: "認証サーバーエラー" }, { status: 500 });
+    return NextResponse.json({ error: "サーバーエラーが発生しました" }, { status: 500 });
   }
 }

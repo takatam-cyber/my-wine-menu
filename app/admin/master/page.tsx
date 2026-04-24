@@ -1,8 +1,11 @@
 "use client";
 
+// Cloudflare Pagesのビルドエラー回避と一貫性のために追加
+export const runtime = 'edge';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'; // Loader2を追加しました
+import { Upload, Database, CheckCircle2, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function MasterAdmin() {
   const [file, setFile] = useState<File | null>(null);
@@ -19,7 +22,6 @@ export default function MasterAdmin() {
     formData.append('file', file);
 
     try {
-      // インポーター専用のバルク登録APIを叩く
       const res = await fetch('/api/master/bulk', { method: 'POST', body: formData });
       if (res.ok) {
         setStatus('success');

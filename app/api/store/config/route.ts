@@ -1,43 +1,47 @@
+// app/api/store/config/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
 
+/**
+ * ログイン中の営業スタッフが管理する店舗の設定を取得・保存
+ */
 export async function GET(req: Request) {
-  const storeEmail = req.headers.get('x-user-email');
-  if (!storeEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const staffEmail = req.headers.get('x-user-email'); // middlewareでセットされる
+  if (!staffEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   
   const db = getRequestContext().env.DB;
-  const config = await db.prepare("SELECT store_name, slug FROM store_configs WHERE store_email = ?")
-    .bind(storeEmail).first();
+  const { results } = await db.prepare("SELECT * FROM store_configs WHERE staff_email = ?")
+    .bind(staffEmail).all();
 
-  return NextResponse.json(config || { store_name: '', slug: '' });
+  return NextResponse.json(results);
 }
 
 export async function POST(req: Request) {
-  const storeEmail = req.headers.get('x-user-email');
-  if (!storeEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const staffEmail = req.headers.get('x-user-email');
+  if (!staffEmail) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { store_name, slug } = await req.json();
+  const { store_name, slug, theme_color } = await req.json();
   const db = getRequestContext().env.DB;
 
-  // Slug（URL）に使用できない文字の簡易チェック
+  // バリデーション: slugは英数字とハイフンのみ
   if (!/^[a-z0-9-]+$/.test(slug)) {
-    return NextResponse.json({ error: "URLには小文字英数字とハイフンのみ使用できます" }, { status: 400 });
+    return NextResponse.json({ error: "URLスラッグには小文字英数字とハイフンのみ使用可能です" }, { status: 400 });
   }
 
   try {
     await db.prepare(`
-      INSERT INTO store_configs (store_email, store_name, slug)
-      VALUES (?, ?, ?)
-      ON CONFLICT(store_email) DO UPDATE SET
+      INSERT INTO store_configs (slug, staff_email, store_name, theme_color)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(slug) DO UPDATE SET
         store_name = excluded.store_name,
-        slug = excluded.slug
-    `).bind(storeEmail, store_name, slug).run();
+        theme_color = excluded.theme_color
+    `).bind(slug, staffEmail, store_name, theme_color || '#b45309').run();
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
     if (e.message.includes("UNIQUE")) {
-      return NextResponse.json({ error: "このURL（Slug）は既に他の店舗が使用しています" }, { status: 400 });
+      return NextResponse.json({ error: "このURLスラッグは既に使用されています" }, { status: 400 });
     }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

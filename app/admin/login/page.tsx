@@ -28,13 +28,12 @@ export default function AdminLogin() {
     setLoading(true);
     setError(null);
 
-    // 実際の運用ではここで /api/auth/login を叩く
     try {
-      // シミュレーション
+      // 認証シミュレーション
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // デモ用ログインロジック
-      if (email.includes('@pieroth.jp')) {
+      // @pieroth.jp ドメインのアカウントのみ許可するデモロジック
+      if (email.toLowerCase().endsWith('@pieroth.jp')) {
         window.location.href = getSafeUrl('/admin');
       } else {
         setError('許可されていないドメインです。@pieroth.jpのアカウントを使用してください。');
@@ -55,7 +54,7 @@ export default function AdminLogin() {
       <div className="w-full max-w-md z-10 space-y-10">
         {/* ロゴエリア */}
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-700 rounded-[2rem] flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/20 rotate-3">
+          <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-700 rounded-[2rem] flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/20 rotate-3 transition-transform hover:rotate-0 duration-500">
             <LayoutGrid size={32} className="text-black" strokeWidth={3} />
           </div>
           <div>
@@ -129,10 +128,11 @@ export default function AdminLogin() {
             <ShieldCheck size={14} />
             <p className="text-[10px] font-black uppercase tracking-widest">Authorized Staff Only</p>
           </div>
-          <p className="text-[9px] text-white/10 font-medium">
+          <p className="text-[9px] text-white/10 font-medium italic">
             © {new Date().getFullYear()} Pieroth Japan K.K. All Rights Reserved.
           </p>
         </div>
       </div>
     </div>
   );
+}

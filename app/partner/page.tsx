@@ -51,6 +51,12 @@ export default function PartnerDashboard() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<{type: 'success'|'error', msg: string} | null>(null);
 
+  // 簡易的な認証チェック（本来はJWT等の検証が必要）
+  useEffect(() => {
+    // デモ用: ログイン状態がなければログイン画面へ
+    // 実際の実装では Cookie または localStorage を確認
+  }, []);
+
   // データ取得
   const fetchInventory = useCallback(async () => {
     setLoading(true);
@@ -109,7 +115,7 @@ export default function PartnerDashboard() {
             <p className="text-[8px] font-black text-amber-600 uppercase tracking-widest mt-1">Partner Portal</p>
           </div>
         </div>
-        <button onClick={() => window.location.href = '/partner/login'} className="p-2.5 bg-slate-100 text-slate-400 rounded-full active:scale-90 transition-all">
+        <button onClick={() => window.location.href = getSafeUrl('/partner/login')} className="p-2.5 bg-slate-100 text-slate-400 rounded-full active:scale-90 transition-all">
           <LogOut size={18} />
         </button>
       </header>

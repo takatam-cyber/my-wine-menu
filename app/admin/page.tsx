@@ -5,13 +5,22 @@ export const runtime = 'edge';
 import { useState, useEffect } from 'react';
 import { 
   Store, Plus, ExternalLink, Database, LayoutDashboard, ArrowRight, LogOut, 
-  Loader2, TrendingUp, Users, Package, Search, Wine, AlertCircle, Lock, Mail
+  Loader2, TrendingUp, Users, Package, Search, Wine, AlertCircle, Lock, Mail, HelpCircle, X, CheckCircle2
 } from 'lucide-react';
 
 /**
- * プレビュー環境および特定のビルド環境での "next/navigation" 解決エラーを回避するため、
- * 標準的な Web API を使用したナビゲーションフックを定義します。
+ * プレビュー環境での URL 解析エラーを回避するためのユーティリティ
  */
+const getApiUrl = (path: string) => {
+  if (typeof window === 'undefined') return path;
+  // blob URL などの特殊な環境下で相対パスが失敗するのを防ぐため、オリジンを付与
+  const origin = window.location.origin;
+  if (origin && origin !== 'null') {
+    return `${origin}${path}`;
+  }
+  return path;
+};
+
 const useRouter = () => {
   return {
     push: (url: string) => {
@@ -35,17 +44,22 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   
-  // ログイン状態の管理
+  // Login states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
+  // Help Modal states
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryStatus, setRecoveryStatus] = useState<{success: boolean, message: string} | null>(null);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  
   const router = useRouter();
 
-  // 認証チェックとデータ取得の統合
   const checkAuthAndFetch = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/store/config');
+      const res = await fetch(getApiUrl('/api/store/config'));
       if (res.ok) {
         const data = await res.json();
         setStores(Array.isArray(data) ? data : []);
@@ -53,11 +67,11 @@ export default function AdminPage() {
         setError(null);
       } else if (res.status === 401) {
         setIsLoggedIn(false);
-      } else {
-        throw new Error("データの取得に失敗しました");
       }
     } catch (err: any) {
-      setError(err.message);
+      console.error("Fetch error:", err);
+      // 環境エラーの場合は、ログインしていない状態として扱う
+      setIsLoggedIn(false);
     } finally {
       setLoading(false);
     }
@@ -72,30 +86,49 @@ export default function AdminPage() {
     setAuthLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth', {
+      const res = await fetch(getApiUrl('/api/auth'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password: password.trim() }),
       });
       const data = await res.json();
       if (res.ok) {
         setIsLoggedIn(true);
         await checkAuthAndFetch();
       } else {
-        setError(data.error || "ログインに失敗しました。メールアドレスまたはパスワードを確認してください。");
+        setError(data.error || "認証に失敗しました。");
       }
     } catch (err) {
-      setError("サーバーとの通信に失敗しました。ネットワーク接続を確認してください。");
+      setError("接続エラーが発生しました。URLの形式を確認してください。");
     } finally {
       setAuthLoading(false);
     }
   };
 
+  const handleRecoveryRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRecoveryLoading(true);
+    setRecoveryStatus(null);
+    try {
+      const res = await fetch(getApiUrl('/api/auth/recovery'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: recoveryEmail.trim() }),
+      });
+      const data = await res.json();
+      setRecoveryStatus({ success: res.ok, message: data.message || data.error });
+    } catch (err) {
+      setRecoveryStatus({ success: false, message: "通信エラーが発生しました。" });
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch(getApiUrl('/api/auth/logout'), { method: 'POST' });
     } catch (e) {
-      console.error("Logout error:", e);
+      console.error(e);
     }
     setIsLoggedIn(false);
     setStores([]);
@@ -107,18 +140,16 @@ export default function AdminPage() {
     store.slug?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // --- ローディング画面 ---
   if (loading && !isLoggedIn) return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
       <Loader2 className="animate-spin text-amber-500" size={48} />
-      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">認証情報を確認中...</p>
+      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading...</p>
     </div>
   );
 
-  // --- ログインフォーム（未認証時） ---
   if (!isLoggedIn) return (
     <div className="min-h-screen bg-[#0d0e12] flex items-center justify-center p-6 font-sans">
-      <div className="max-w-md w-full space-y-8 bg-white rounded-[3rem] p-12 shadow-2xl animate-in fade-in zoom-in duration-500">
+      <div className="max-w-md w-full space-y-8 bg-white rounded-[3rem] p-12 shadow-2xl">
         <div className="text-center space-y-2">
           <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center text-white mx-auto shadow-lg mb-4">
             <Wine size={32} />
@@ -128,9 +159,8 @@ export default function AdminPage() {
         </div>
 
         {error && (
-          <div className="p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 text-xs font-bold border border-red-100 animate-shake">
-            <AlertCircle size={16} className="shrink-0" /> 
-            <span>{error}</span>
+          <div className="p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 text-xs font-bold border border-red-100">
+            <AlertCircle size={16} className="shrink-0" /> <span>{error}</span>
           </div>
         )}
 
@@ -163,17 +193,70 @@ export default function AdminPage() {
             type="submit" disabled={authLoading}
             className="w-full py-6 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-black transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
           >
-            {authLoading ? <Loader2 className="animate-spin" /> : "ログインして管理画面へ"}
+            {authLoading ? <Loader2 className="animate-spin" /> : "ログイン"}
           </button>
         </form>
+
+        <button 
+          onClick={() => setIsHelpOpen(true)}
+          className="w-full text-center text-slate-400 font-bold text-xs hover:text-slate-600 transition-colors flex items-center justify-center gap-2"
+        >
+          <HelpCircle size={14}/> ログインでお困りですか？
+        </button>
       </div>
+
+      {/* Login Help Modal */}
+      {isHelpOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-10 relative shadow-2xl animate-in zoom-in duration-200">
+            <button onClick={() => setIsHelpOpen(false)} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900 transition-colors"><X size={24}/></button>
+            <div className="space-y-6">
+              <div className="p-4 bg-amber-50 w-fit rounded-2xl text-amber-600"><HelpCircle size={32}/></div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Login Help</h2>
+                <p className="text-slate-400 text-xs font-bold leading-relaxed mt-2 uppercase">パスワードをお忘れ、またはログインできない場合</p>
+              </div>
+
+              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                <p className="text-xs text-slate-500 font-bold leading-relaxed">
+                  社内規定により、パスワードは定期的にリセットされる場合があります。メールアドレスを入力して、一時パスワードを発行してください。
+                </p>
+                
+                <form onSubmit={handleRecoveryRequest} className="space-y-3">
+                  <input 
+                    type="email" required placeholder="登録済みのメールアドレス"
+                    className="w-full p-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-amber-500 transition-all font-bold"
+                    value={recoveryEmail} onChange={e => setRecoveryEmail(e.target.value)}
+                  />
+                  <button 
+                    disabled={recoveryLoading}
+                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-black text-xs hover:bg-black transition-all flex items-center justify-center gap-2"
+                  >
+                    {recoveryLoading ? <Loader2 className="animate-spin" size={14}/> : "一時パスワードを発行する"}
+                  </button>
+                </form>
+
+                {recoveryStatus && (
+                  <div className={`p-4 rounded-xl flex items-start gap-3 border animate-in slide-in-from-top-2 ${recoveryStatus.success ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+                    {recoveryStatus.success ? <CheckCircle2 className="shrink-0" size={16}/> : <AlertCircle className="shrink-0" size={16}/>}
+                    <p className="text-[10px] font-bold leading-tight">{recoveryStatus.message}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-center">
+                <p className="text-[10px] text-slate-400 font-bold">上記で解決しない場合はシステム管理者へお問い合わせください</p>
+                <p className="text-[10px] text-slate-900 font-black mt-1 tracking-widest uppercase">IT Support: ext. 777</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
-  // --- メインダッシュボード（認証済み） ---
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans flex animate-in fade-in duration-700">
-      {/* サイドバー */}
       <aside className="hidden lg:flex w-72 bg-white border-r border-slate-200 flex-col sticky top-0 h-screen">
         <div className="p-8 border-b border-slate-100 flex items-center gap-3">
           <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg">
@@ -201,7 +284,6 @@ export default function AdminPage() {
         </div>
       </aside>
 
-      {/* メインコンテンツ */}
       <main className="flex-1 min-w-0 overflow-y-auto">
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 px-8 py-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>

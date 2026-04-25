@@ -5,7 +5,7 @@ export const runtime = 'edge';
 import { useState, useEffect } from 'react';
 import { 
   Store, Plus, ExternalLink, Database, LayoutDashboard, ArrowRight, LogOut, 
-  Loader2, TrendingUp, Users, Package, Search, AlertCircle, Lock, Mail, HelpCircle, X, CheckCircle2, Settings
+  Loader2, TrendingUp, Users, Package, Search, AlertCircle, Lock, Mail, HelpCircle, X, CheckCircle2, Settings, QrCode, Download, Share2
 } from 'lucide-react';
 
 const useRouter = () => {
@@ -26,6 +26,9 @@ export default function AdminPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // QR Modal state
+  const [qrModalStore, setQrModalStore] = useState<any>(null);
   
   const router = useRouter();
 
@@ -86,6 +89,11 @@ export default function AdminPage() {
     store.slug?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getPublicUrl = (slug: string) => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/${slug}`;
+  };
+
   if (loading && !isLoggedIn) return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
       <Loader2 className="animate-spin text-amber-600" size={48} />
@@ -115,7 +123,7 @@ export default function AdminPage() {
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
               <input 
                 type="email" required 
-                className="w-full p-5 pl-14 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 outline-none text-slate-900 font-bold transition-all"
+                className="w-full p-5 pl-14 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 outline-none text-slate-900 font-bold transition-all text-left"
                 placeholder="takatam@pieroth.jp"
                 value={email} onChange={e => setEmail(e.target.value)}
               />
@@ -127,7 +135,7 @@ export default function AdminPage() {
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
               <input 
                 type="password" required 
-                className="w-full p-5 pl-14 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 outline-none text-slate-900 font-bold transition-all"
+                className="w-full p-5 pl-14 bg-slate-50 rounded-2xl border-2 border-transparent focus:border-amber-500 outline-none text-slate-900 font-bold transition-all text-left"
                 placeholder="••••••••"
                 value={password} onChange={e => setPassword(e.target.value)}
               />
@@ -148,7 +156,7 @@ export default function AdminPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans flex text-left">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans flex text-left relative">
       {/* Sidebar */}
       <aside className="hidden lg:flex w-72 bg-white border-r border-slate-200 flex-col sticky top-0 h-screen">
         <div className="p-8 border-b border-slate-100 flex items-center gap-3">
@@ -197,7 +205,7 @@ export default function AdminPage() {
             <input 
               type="text" 
               placeholder="店舗名またはスラッグで検索..." 
-              className="w-full pl-14 pr-6 py-5 bg-white rounded-3xl border border-slate-200 shadow-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition-all"
+              className="w-full pl-14 pr-6 py-5 bg-white rounded-3xl border border-slate-200 shadow-sm font-bold text-slate-700 outline-none focus:border-amber-500 transition-all text-left"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -206,12 +214,19 @@ export default function AdminPage() {
           <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 pb-20">
             {filteredStores.map(store => (
               <div key={store.slug} className="group bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden hover:shadow-2xl transition-all duration-500 flex flex-col">
-                <div className="p-8 flex-1 space-y-6">
+                <div className="p-8 flex-1 space-y-6 text-left">
                   <div className="flex justify-between items-start">
                     <div className="p-4 bg-slate-50 text-slate-400 rounded-2xl group-hover:bg-amber-500 group-hover:text-white transition-all duration-500 shadow-inner">
                       <Store size={24}/>
                     </div>
                     <div className="flex gap-2">
+                      <button 
+                        onClick={() => setQrModalStore(store)}
+                        className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        title="メニューのQRコードを表示"
+                      >
+                        <QrCode size={18}/>
+                      </button>
                       <a href={`/${store.slug}`} target="_blank" className="p-3 bg-slate-50 text-slate-400 rounded-xl hover:text-amber-500 hover:bg-amber-50 transition-colors">
                         <ExternalLink size={18}/>
                       </a>
@@ -245,6 +260,68 @@ export default function AdminPage() {
           </section>
         </div>
       </main>
+
+      {/* QR Code Modal */}
+      {qrModalStore && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 relative shadow-2xl text-center space-y-8 animate-in zoom-in duration-300">
+            <button 
+              onClick={() => setQrModalStore(null)} 
+              className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-900 transition-colors"
+            >
+              <X size={24}/>
+            </button>
+
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">{qrModalStore.store_name}</h3>
+              <p className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em]">Digital Menu QR Code</p>
+            </div>
+
+            <div className="bg-slate-50 p-8 rounded-[2.5rem] border-2 border-slate-100 flex flex-col items-center gap-4">
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(getPublicUrl(qrModalStore.slug))}`}
+                alt="QR Code"
+                className="w-full aspect-square max-w-[200px] shadow-lg rounded-2xl border-4 border-white"
+              />
+              <p className="text-[10px] font-mono text-slate-400 break-all">{getPublicUrl(qrModalStore.slug)}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button 
+                onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(getPublicUrl(qrModalStore.slug))}`, '_blank')}
+                className="flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs hover:bg-black transition-all"
+              >
+                <Download size={14}/> 画像保存
+              </button>
+              <button 
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({
+                      title: qrModalStore.store_name,
+                      text: 'ワインメニューはこちら',
+                      url: getPublicUrl(qrModalStore.slug)
+                    });
+                  } else {
+                    document.execCommand('copy');
+                    const dummy = document.createElement('input');
+                    document.body.appendChild(dummy);
+                    dummy.value = getPublicUrl(qrModalStore.slug);
+                    dummy.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(dummy);
+                  }
+                }}
+                className="flex items-center justify-center gap-2 py-4 bg-amber-500 text-black rounded-2xl font-black text-xs hover:bg-amber-400 transition-all"
+              >
+                <Share2 size={14}/> リンクを共有
+              </button>
+            </div>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
+              このQRコードを店頭に設置することで、<br/>お客様は瞬時にメニューへアクセスできます。
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

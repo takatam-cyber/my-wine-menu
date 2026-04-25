@@ -1,3 +1,4 @@
+// app/api/sommelier/route.ts
 export const runtime = 'edge';
 import { NextResponse } from 'next/server';
 import { getRequestContext } from '@cloudflare/next-on-pages';
@@ -7,27 +8,31 @@ export async function POST(req: Request) {
     const { message, history, wineList } = await req.json();
     const env = getRequestContext().env;
 
-    // 自社ワインを最優先にコンテキスト構築
+    // 自社ワイン(is_priority)を最優先にしたコンテキスト構築
     const sorted = [...wineList].sort((a, b) => (b.is_priority ? 1 : 0) - (a.is_priority ? 1 : 0));
-    const wineContext = sorted.slice(0, 20).map((w: any) => 
-      `ID:${w.id} | ${w.name_jp} | ${w.is_priority ? '★一押し★' : ''} | ¥${w.price_bottle} | 解説:${w.ai_explanation} | 料理:${w.pairing}`
+    const wineContext = sorted.slice(0, 15).map((w: any) => 
+      `ID:${w.id} | ${w.name_jp} (${w.country}) | ${w.is_priority ? '★自信を持って推奨★' : ''} | 瓶:¥${w.store_price_bottle} | 解説:${w.ai_explanation} | 料理:${w.pairing}`
     ).join("\n");
 
-    const systemPrompt = `あなたは世界一のレストランプロデューサー兼ソムリエです。
-あなたの使命は、お客様の心に火をつけ、特に「★一押し★」がついた自社直輸入ワインを最高の感動と共に提供することです。
+    const systemPrompt = `あなたはピーロート・ジャパンの伝説的ソムリエです。
+あなたの使命は、お客様の好みを引き出し、リスト内のワイン（特に★がついた自社直輸入ワイン）を情熱的に提案することです。
 
-【300%の接客ロジック】
-1. **物語で売る**: スペックではなく「風景」を語れ。例：「アンデス山脈の冷涼な風を感じるような、研ぎ澄まされた酸味です」
-2. **納得感のある推奨**: お客様の要望に対し、酸味・渋み・甘味のプロットを脳内で計算し、最も輝く2〜3本を提案せよ。
-3. **クロージングの技術**: 提案の最後には「このワインはお客様の今夜を特別なものに変える力があります」と自信を持って一押しせよ。
-4. **ID紐付け**: 紹介するワインには必ず 【ID:番号】 を付与すること。
+【接客の掟】
+1. スペック（数値）ではなく、飲んだ時の「情景」や「感動」を語ってください。
+2. リストにないワインは絶対に勧めないでください。
+3. 提案の最後には、必ず紹介したワインの【ID:番号】を添えてください。
+4. 返答は親しみやすくもプロフェッショナルな日本語で行ってください。
 
-リスト:
+【現在提供可能なリスト】
 ${wineContext}`;
 
     const res: any = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-      messages: [{ role: 'system', content: systemPrompt }, ...history, { role: 'user', content: message }],
-      max_tokens: 1200
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history,
+        { role: 'user', content: message }
+      ],
+      max_tokens: 1000
     });
 
     return NextResponse.json({ response: res.response });

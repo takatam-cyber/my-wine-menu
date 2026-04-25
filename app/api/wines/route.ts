@@ -12,16 +12,16 @@ export async function GET(req: Request) {
   const db = getRequestContext().env.DB;
 
   try {
-    // スキーマの store_inventory は store_slug と wine_id を持つ
+    // wines_master と store_inventory を結合して、その店舗独自の価格と在庫を表示
     const { results } = await db.prepare(`
       SELECT 
         m.*,
-        i.price_bottle, 
-        i.price_glass, 
-        i.stock, 
+        i.price_bottle as store_price_bottle, 
+        i.price_glass as store_price_glass, 
+        i.stock as store_stock, 
         i.is_visible
       FROM wines_master m
-      JOIN store_inventory i ON m.id = i.wine_id
+      INNER JOIN store_inventory i ON m.id = i.wine_id
       WHERE i.store_slug = ? AND i.is_visible = 1
       ORDER BY m.is_priority DESC, m.name_jp ASC
     `).bind(slug).all();

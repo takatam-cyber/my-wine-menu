@@ -18,13 +18,13 @@ export async function POST(req: Request) {
     const headers = rows[0].split(',').map(h => h.trim());
     const db = getRequestContext().env.DB;
 
-    // バッチ処理で高速更新
+    // 店舗の現在の在庫を一度リセット（または論理削除）
     const batch = [
       db.prepare(`DELETE FROM store_inventory WHERE store_slug = ?`).bind(slug)
     ];
 
     for (let i = 1; i < rows.length; i++) {
-      const values = rows[i].split(',').map(v => v.trim());
+      const values = rows[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
       const data: any = {};
       headers.forEach((h, idx) => { data[h] = values[idx]; });
 
